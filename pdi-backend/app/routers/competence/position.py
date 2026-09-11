@@ -26,7 +26,7 @@ def create_position(
     if user_logged["role"] not in roles_permitted:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            details="Acesso Negado. Apenas membros do RH podem cadastrar novos cargos."
+            detail="Acesso Negado. Apenas membros do RH podem cadastrar novos cargos."
         )
         
     existing_position = db.query(Position).filter(Position.name.ilike(position.name)).first()

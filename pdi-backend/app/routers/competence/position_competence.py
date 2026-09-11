@@ -22,12 +22,12 @@ def create_relation_position_competence(
     db:Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
-    roles_permitted = ["Gestor"]
+    roles_permitted = ["Recursos Humanos"]
     
     if user_logged["role"] not in roles_permitted:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            details="Acesso Negado. Apenas membros do RH podem definir níveis esperados por cargo."
+            detail="Acesso Negado. Apenas membros do RH podem definir níveis esperados por cargo."
         )
     
     existing_position = db.query(Position).filter(Position.id == position_competence.position_id).first()
