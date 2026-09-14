@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, status
 from sqlalchemy import or_
 
 from sqlalchemy.orm import Session
@@ -6,10 +6,15 @@ from app.config.database import get_db
 from app.config import security
 from app.models.auth.role import Role
 from app.models.auth.user import User
+from app.models.competence.position import Position
 from app.models.evaluation.evaluation import Evaluation
+from app.models.evaluation.evaluation_question import EvaluationQuestion
+from app.models.evaluation.form_question import FormQuestion
 from app.models.auth.enterprise import Enterprise
+from app.models.competence.position_competence import PositionCompetence
 from app.schemas.evaluation.evaluation import EvaluationCreate, EvaluationCreateResponse, EvaluationDetailResponse, EvaluationResponse
-
+from app.services.gemini_service import generate_form_questions_ai
+from app.services.email_service import send_evaluation_notification
     
 router = APIRouter(prefix="/evaluation", tags=["Evaluation"])
 
@@ -36,6 +41,7 @@ def create_evaluation(
     
     existing_user = db.query(User).filter(User.id == evaluation.user_id).first()
     existing_evaluator = db.query(User).filter(User.id == evaluation.evaluator_id).first()
+    existing_position = db.query(Position).filter(Position.id == evaluation.target_position_id).first()
     
     if not existing_user:
         raise HTTPException(
@@ -47,6 +53,12 @@ def create_evaluation(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="O(a) avaliador(a) informado(a) não existe no sistema."
+        )
+    
+    if not existing_position:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O cargo informado para a avaliação não existe no sistema."
         )
     
     if evaluation.type == "SELF":
@@ -99,6 +111,7 @@ def create_evaluation(
     new_evaluation = Evaluation(
         user_id = evaluation.user_id,
         evaluator_id = evaluation.evaluator_id,
+        target_position_id = evaluation.target_position_id,
         enterprise_id = evaluation.enterprise_id,
         type = evaluation.type
     )
@@ -120,6 +133,7 @@ def create_evaluation(
             id=new_evaluation.id,
             user_id=new_evaluation.user_id,
             evaluator_id=new_evaluation.evaluator_id,
+            target_position_id=new_evaluation.target_position_id,
             enterprise_id=new_evaluation.enterprise_id,
             type=new_evaluation.type,
             created_at=str(new_evaluation.created_at)
@@ -202,3 +216,122 @@ def list_evaluation_user(
                      ).all() 
     
     return records
+
+@router.post(
+    "/{evaluation_id}/generate-questions",
+    status_code=status.HTTP_201_CREATED,
+    summary="IA: Gera perguntas automáticas para a avaliação"
+)
+
+def generate_questions_for_evaluation(
+    evaluation_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user_logged: dict = Depends(security.get_logged_in_user)
+    ):
+    
+    
+    roles_permitted = ["Recursos Humanos"]
+    if user_logged["role"] not in roles_permitted:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Apenas membros do RH podem gerar perguntas via IA."
+        )
+        
+    existing_evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+    if not existing_evaluation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Avaliação não encontrada."
+        )
+    
+        
+    if existing_evaluation.target_position_id:
+        
+        position = db.query(Position).filter(Position.id == existing_evaluation.target_position_id).first()
+        if not position:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cargo associado à avaliação não foi encontrado no banco."
+            )
+            
+        position_competences = db.query(PositionCompetence).filter(
+            PositionCompetence.position_id == existing_evaluation.target_position_id
+        ).all()
+        
+    else:
+        
+        user = db.query(User).filter(User.id == existing_evaluation.user_id).first()
+        user_pos_id = getattr(user, "id_position", None) or getattr(user, "position_id", None)
+        
+        if not user or not user_pos_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="O usuário avaliado não possui um cargo definido."
+            )
+            
+            
+        position = db.query(Position).filter(Position.id == user_pos_id).first()
+        if not position:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cargo associado ao colaborador não foi encontrado no banco."
+            )
+            
+        position_competences = db.query(PositionCompetence).filter(
+            PositionCompetence.position_id == user_pos_id
+        ).all()
+    
+        
+    if not position_competences:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Este cargo não possui competências vinculadas."
+        )
+        
+    competences_payload = [
+        {
+            "competence_id": pc.competence_id,
+            "name": pc.competence.name,
+            "expected_level": pc.expected_level
+        }
+        for pc in position_competences
+    ]
+    
+    evaluator = db.query(User).filter(User.id == existing_evaluation.evaluator_id).first()
+    if evaluator and evaluator.email:
+        background_tasks.add_task(
+            send_evaluation_notification,
+            to_email=evaluator.email,
+            recipient_name=evaluator.name,
+            evaluation_type=existing_evaluation.type,
+            employee_name=existing_evaluation.user.name
+        )
+    
+    try:
+        questions = generate_form_questions_ai(
+            position_name=position.name,
+            competences=competences_payload
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Serviço de IA temporariamente indisponível. Tente novamente em instantes. Detalhes: {str(e)}"
+        )
+    
+    for question in questions:
+        new_form_question = FormQuestion(
+            competence_id=question["competence_id"],
+            question_text=question["question_text"],
+        )
+        db.add(new_form_question)
+        db.flush()
+        
+        evaluation_question = EvaluationQuestion(
+            evaluation_id=existing_evaluation.id,
+            question_id=new_form_question.id
+        )
+        db.add(evaluation_question)
+        
+    db.commit()
+    return {"message": "Perguntas criadas pela IA com sucesso e notificação enviada!", "total": len(questions)}
