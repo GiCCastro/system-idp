@@ -3,10 +3,12 @@ from datetime import date
 from pydantic import BaseModel, EmailStr  
 from app.models.evaluation.evaluation import EvaluationTypeEnum
 from app.schemas.auth.user import UserSimpleResponse
+from app.schemas.competence.position import PositionResponse
 
 class EvaluationCreate(BaseModel):
     user_id: int
     evaluator_id: int
+    target_position_id: int
     enterprise_id: int
     type: EvaluationTypeEnum
     
@@ -32,6 +34,7 @@ class EvaluationDetailResponse(BaseModel):
     user: UserSimpleResponse
     evaluator: UserSimpleResponse
     enterprise: EnterpriseResponse
+    target_position_id: PositionResponse
     type: EvaluationTypeEnum
     
         
