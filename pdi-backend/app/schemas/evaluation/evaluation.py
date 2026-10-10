@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Optional
 
 from pydantic import BaseModel, EmailStr  
 from app.models.evaluation.evaluation import EvaluationTypeEnum
@@ -8,9 +9,10 @@ from app.schemas.competence.position import PositionResponse
 class EvaluationCreate(BaseModel):
     user_id: int
     evaluator_id: int
-    target_position_id: int
+    target_position_id: Optional[int] = None
     enterprise_id: int
     type: EvaluationTypeEnum
+    cycle: str
     
 class EvaluationResponse(EvaluationCreate):
     
@@ -34,8 +36,12 @@ class EvaluationDetailResponse(BaseModel):
     user: UserSimpleResponse
     evaluator: UserSimpleResponse
     enterprise: EnterpriseResponse
-    target_position_id: PositionResponse
+    target_position_id: Optional[PositionResponse] = None
     type: EvaluationTypeEnum
+    cycle: str
+    
+    class Config:
+        from_attributes = True
     
         
 class EvaluationCreateResponse(BaseModel):

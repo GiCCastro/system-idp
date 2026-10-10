@@ -121,3 +121,185 @@ def list_development_user(
     return records
     
     
+
+
+from app.models.evaluation.evaluation import Evaluation
+from app.models.evaluation.evaluation_answer import EvaluationAnswer
+from app.models.development.development_plan import DevelopmentPlan, PlanStatusEnum
+from app.services.gap_service import calculate_calibrated_gaps
+from app.services.gemini_service import generate_pdi_suggestions_ai
+
+@router.post(
+    "/generate-from-evaluation/{evaluation_id}",
+    status_code=status.HTTP_201_CREATED,
+    summary="Calcula Gaps e gera o PDI 70-20-10 automaticamente"
+)
+
+def generate_development_from_evaluation(
+    evaluation_id: int,
+    db: Session = Depends(get_db),
+    user_logged: dict = Depends(security.get_logged_in_user)        
+):
+    roles_permitted = ["Recursos Humanos"]
+    if user_logged["role"] not in roles_permitted:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Apenas membros do RH podem gerar o desenvolvimento a partir da avaliação."
+        )
+    
+    existing_evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+    if not existing_evaluation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="A avaliação informada não existe no sistema."
+        )
+        
+    user_id = existing_evaluation.user_id
+    existing_user = db.query(User).filter(User.id == user_id).first()
+    if not existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="O usuário associado à avaliação não existe no sistema."
+        )
+        
+    position_id = existing_evaluation.target_position_id or existing_user.position_id
+    existing_position = db.query(Position).filter(Position.id == position_id).first()
+    if not existing_position:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="A posição associada à avaliação não existe no sistema."
+        )
+        
+    target_cycle = existing_evaluation.cycle
+    self_evaluation = db.query(Evaluation).filter(
+        Evaluation.user_id == user_id,
+        Evaluation.type == "SELF",
+        Evaluation.cycle == target_cycle
+    ).first()
+    
+    manager_evaluation = db.query(Evaluation).filter(
+        Evaluation.user_id == user_id,
+        Evaluation.type == "MANAGER",
+        Evaluation.cycle == target_cycle
+    ).first()
+    
+    if not self_evaluation or not manager_evaluation:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Não é possível gerar o PDI. O ciclo '{target_cycle}' está incompleto (deve conter SELF e MANAGER cadastradas)."
+        )
+        
+    self_answers_count = (
+        db.query(EvaluationAnswer.id)
+        .join(Evaluation, EvaluationAnswer.evaluation_id == Evaluation.id)
+        .filter(
+            Evaluation.user_id == user_id,
+            Evaluation.type == "SELF",
+            Evaluation.cycle == target_cycle
+        )
+        .count()
+    )
+    
+    manager_answers_count = (
+        db.query(EvaluationAnswer.id)
+        .join(Evaluation, EvaluationAnswer.evaluation_id == Evaluation.id)
+        .filter(
+            Evaluation.user_id == user_id,
+            Evaluation.type == "MANAGER",
+            Evaluation.cycle == target_cycle
+        )
+        .count()
+    )
+    
+    if self_answers_count == 0 or manager_answers_count == 0:
+        pending = []
+        if self_answers_count == 0:
+            pending.append("Autoavaliação")
+        if manager_answers_count == 0:
+            pending.append("Avaliação do Gestor")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Não é possível gerar o PDI. O ciclo '{target_cycle}' está incompleto. Faltam respostas para: {', '.join(pending)}."
+        )
+        
+    gaps = calculate_calibrated_gaps(
+        db=db, 
+        user_id=existing_user.id, 
+        cycle=target_cycle,
+        target_position_id=position_id,
+        enterprise_id=existing_user.enterprise_id
+        )
+    
+    if not gaps:
+        return {
+            "message": "Nenhum gap negativo identificado. O colaborador atingiu ou superou os requisitos do cargo!",
+            "plans_created": 0
+        }
+        
+    
+    try:
+        ai_suggestions = generate_pdi_suggestions_ai(
+            position_name=existing_position.name,
+            gaps=gaps,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Serviço de IA temporariamente indisponível. Tente novamente em instantes."
+        ) from exc
+    
+    existing_development = db.query(Development).filter(
+        Development.user_id == existing_user.id,
+        Development.position_id == position_id
+    ).first()
+    
+    if not existing_development:
+        new_development = Development(
+            user_id=user_id,
+            position_id=position_id,
+            title=f"PDI - Plano de Desenvolvimento ({existing_position.name})",
+            status=DevelopmentStatusEnum.PENDING
+        )
+        
+        db.add(new_development)
+        db.flush()
+    else:
+        new_development = existing_development
+        
+        
+    gap_map = {gap["competence_id"]: gap["gap"] for gap in gaps}
+        
+    for suggestion in ai_suggestions:
+        competence_id = suggestion.get("competence_id")
+            
+        full_action_text = (
+        f"[Prática 70%]: {suggestion.get('action_70', '')}\n\n"
+        f"[Mentoria/Troca 20%]: {suggestion.get('action_20', '')}\n\n"
+        f"[Educação Formal 10%]: {suggestion.get('action_10', '')}"
+    )
+        
+        existing_plan = db.query(DevelopmentPlan).filter(
+            DevelopmentPlan.development_id == new_development.id,
+            DevelopmentPlan.competence_id == competence_id
+        ).first()
+        
+        if existing_plan:
+            existing_plan.gap = gap_map.get(competence_id, existing_plan.gap)
+            existing_plan.action = full_action_text
+        else:
+            new_plan = DevelopmentPlan(
+                development_id=new_development.id,
+                competence_id=competence_id,
+                gap=gap_map.get(competence_id, 0.0),
+                action=full_action_text,
+                status=PlanStatusEnum.PENDING
+            )
+            db.add(new_plan)
+    
+    db.commit()
+    
+    return {
+        "message": "PDI gerado e persistido com sucesso!",
+        "development_id": new_development.id,
+        "total_competences_addressed": len(ai_suggestions)
+    }
