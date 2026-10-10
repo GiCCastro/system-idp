@@ -125,6 +125,7 @@ def list_development_user(
 
 from app.models.evaluation.evaluation import Evaluation
 from app.models.evaluation.evaluation_answer import EvaluationAnswer
+from app.models.evaluation.evaluation_question import EvaluationQuestion
 from app.models.development.development_plan import DevelopmentPlan, PlanStatusEnum
 from app.services.gap_service import calculate_calibrated_gaps
 from app.services.gemini_service import generate_pdi_suggestions_ai
@@ -188,6 +189,14 @@ def generate_development_from_evaluation(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Não é possível gerar o PDI. O ciclo '{target_cycle}' está incompleto (deve conter SELF e MANAGER cadastradas)."
         )
+
+    total_self_questions = db.query(EvaluationQuestion).filter(
+        EvaluationQuestion.evaluation_id == self_evaluation.id
+    ).count()
+
+    total_manager_questions = db.query(EvaluationQuestion).filter(
+        EvaluationQuestion.evaluation_id == manager_evaluation.id
+    ).count()
         
     self_answers_count = (
         db.query(EvaluationAnswer.id)
@@ -211,24 +220,35 @@ def generate_development_from_evaluation(
         .count()
     )
     
-    if self_answers_count == 0 or manager_answers_count == 0:
+    if (total_self_questions > 0 and self_answers_count < total_self_questions) or (total_manager_questions > 0 and manager_answers_count < total_manager_questions) or self_answers_count == 0 or manager_answers_count == 0:
         pending = []
-        if self_answers_count == 0:
-            pending.append("Autoavaliação")
-        if manager_answers_count == 0:
-            pending.append("Avaliação do Gestor")
+        if self_answers_count == 0 or (total_self_questions > 0 and self_answers_count < total_self_questions):
+            pending.append(f"Autoavaliação ({self_answers_count}/{total_self_questions} respondidas)")
+        if manager_answers_count == 0 or (total_manager_questions > 0 and manager_answers_count < total_manager_questions):
+            pending.append(f"Avaliação do Gestor ({manager_answers_count}/{total_manager_questions} respondidas)")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Não é possível gerar o PDI. O ciclo '{target_cycle}' está incompleto. Faltam respostas para: {', '.join(pending)}."
+            detail=f"Não é possível gerar o PDI. Faltam respostas para: {', '.join(pending)}."
         )
         
+    existing_development = db.query(Development).filter(
+        Development.user_id == existing_user.id,
+        Development.position_id == position_id
+    ).first()
+    
+    if existing_development:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Já existe um Plano de Desenvolvimento (PDI) gerado para este colaborador nesta posição."
+        )
+
     gaps = calculate_calibrated_gaps(
         db=db, 
         user_id=existing_user.id, 
         cycle=target_cycle,
         target_position_id=position_id,
         enterprise_id=existing_user.enterprise_id
-        )
+    )
     
     if not gaps:
         return {
@@ -236,7 +256,6 @@ def generate_development_from_evaluation(
             "plans_created": 0
         }
         
-    
     try:
         ai_suggestions = generate_pdi_suggestions_ai(
             position_name=existing_position.name,
@@ -247,24 +266,16 @@ def generate_development_from_evaluation(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Serviço de IA temporariamente indisponível. Tente novamente em instantes."
         ) from exc
+
+    new_development = Development(
+        user_id=user_id,
+        position_id=position_id,
+        title=f"PDI - Plano de Desenvolvimento ({existing_position.name})",
+        status=DevelopmentStatusEnum.PENDING
+    )
     
-    existing_development = db.query(Development).filter(
-        Development.user_id == existing_user.id,
-        Development.position_id == position_id
-    ).first()
-    
-    if not existing_development:
-        new_development = Development(
-            user_id=user_id,
-            position_id=position_id,
-            title=f"PDI - Plano de Desenvolvimento ({existing_position.name})",
-            status=DevelopmentStatusEnum.PENDING
-        )
-        
-        db.add(new_development)
-        db.flush()
-    else:
-        new_development = existing_development
+    db.add(new_development)
+    db.flush()
         
         
     gap_map = {gap["competence_id"]: gap["gap"] for gap in gaps}
