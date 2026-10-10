@@ -31,6 +31,12 @@ def create_evaluation_answer(
             detail= "A avaliação informada não existe no sistema."
         )
         
+    if existing_evaluation.evaluator_id != user_logged["user_id"]:
+        raise HTTPException(
+            status_code = status.HTTP_403_FORBIDDEN,
+            detail = "Acesso negado. Apenas o avaliador pode responder as questões desta avaliação."
+        )
+        
     new_answers_to_add = []
     
     for item in evaluation_answer.answers:
