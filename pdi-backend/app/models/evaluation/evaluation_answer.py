@@ -5,6 +5,8 @@ from app.config.database import Base
 class EvaluationAnswer(Base):
     __tablename__ = "evaluation_answer"
     
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
     evaluation_id = Column(Integer, ForeignKey("evaluation.id"), primary_key=True, nullable=False)
     question_id = Column(Integer, ForeignKey("form_question.id"), primary_key=True, nullable=False)
     answer_text = Column(Text, nullable=False)
