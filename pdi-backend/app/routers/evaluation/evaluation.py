@@ -53,6 +53,29 @@ def create_evaluation(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="O(a) avaliador(a) informado(a) não existe no sistema."
         )
+        
+    if user_logged.get("enterprise_id"):
+        if evaluation.enterprise_id != user_logged["enterprise_id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acesso negado. A avaliação deve pertencer à mesma empresa do usuário autenticado."
+            )
+        if existing_user.enterprise_id != user_logged["enterprise_id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acesso negado. O(a) colaborador(a) informado(a) pertence a outra empresa."
+            )
+        if existing_evaluator.enterprise_id != user_logged["enterprise_id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acesso negado. O(a) avaliador(a) informado(a) pertence a outra empresa."
+            )
+
+    if existing_user.enterprise_id != existing_evaluator.enterprise_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O colaborador e o avaliador devem pertencer à mesma empresa."
+        )
     
     if evaluation.target_position_id is not None:
         existing_position = db.query(Position).filter(Position.id == evaluation.target_position_id).first()
@@ -185,7 +208,10 @@ def list_evaluations(
                 detail = "Acesso negado. Apenas membros do RH podem listar todas as avaliações"
             )
 
-    return db.query(Evaluation).all()
+    query = db.query(Evaluation)
+    if user_logged.get("enterprise_id"):
+        query = query.filter(Evaluation.enterprise_id == user_logged["enterprise_id"])
+    return query.all()
 
 
 @router.get(
@@ -201,12 +227,18 @@ def list_evaluation_user(
 ):
     
     existing_user = db.query(User).filter(User.id == user_id).first()
-    is_user = (existing_user.id == user_logged["user_id"])
+    is_user = (existing_user and existing_user.id == user_logged["user_id"])
     
     if not existing_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Usuário não encontrado."
+        )
+
+    if user_logged.get("enterprise_id") and existing_user.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. O colaborador informado pertence a outra empresa."
         )
         
 
@@ -265,6 +297,12 @@ def generate_questions_for_evaluation(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Avaliação não encontrada."
+        )
+
+    if user_logged.get("enterprise_id") and existing_evaluation.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Esta avaliação pertence a outra empresa."
         )
     
     # 1. Recupera o colaborador avaliado de forma segura

@@ -46,7 +46,22 @@ def get_logged_in_user(credentials: HTTPAuthorizationCredentials = Depends(secur
         if user_id is None or role is None:
             raise exception_unauthorized
         
-        return {"user_id": int(user_id), "role": role}
+        enterprise_id = payload.get("enterprise_id")
+        if enterprise_id is not None:
+            enterprise_id = int(enterprise_id)
+        else:
+            from app.config.database import SessionLocal
+            from app.models.auth.user import User
+            with SessionLocal() as db_session:
+                user_found = db_session.query(User.enterprise_id).filter(User.id == int(user_id)).first()
+                if user_found:
+                    enterprise_id = user_found[0]
+        
+        return {
+            "user_id": int(user_id), 
+            "role": role,
+            "enterprise_id": enterprise_id
+        }
     
     except JWTError:
         raise exception_unauthorized

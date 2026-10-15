@@ -36,6 +36,12 @@ def create_evaluation_answer(
             status_code = status.HTTP_403_FORBIDDEN,
             detail = "Acesso negado. Apenas o avaliador pode responder as questões desta avaliação."
         )
+
+    if user_logged.get("enterprise_id") and existing_evaluation.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Esta avaliação pertence a outra empresa."
+        )
         
     new_answers_to_add = []
     
@@ -107,4 +113,10 @@ def list_evaluation_questions(
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
     
-    return db.query(EvaluationAnswer).all()
+    query = (
+        db.query(EvaluationAnswer)
+        .join(Evaluation, EvaluationAnswer.evaluation_id == Evaluation.id)
+    )
+    if user_logged.get("enterprise_id"):
+        query = query.filter(Evaluation.enterprise_id == user_logged["enterprise_id"])
+    return query.all()

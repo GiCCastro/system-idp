@@ -43,6 +43,12 @@ def create_development_plan(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="O desenvolvimento informado não existe no sistema"
         )
+
+    if user_logged.get("enterprise_id") and existing_development.user and existing_development.user.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Este desenvolvimento pertence a outra empresa."
+        )
         
     if not existing_competence:
         raise HTTPException(
@@ -113,6 +119,12 @@ def list_development_user(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Desenvolvimento não encontrado."
+        )
+
+    if user_logged.get("enterprise_id") and existing_development.user and existing_development.user.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Este desenvolvimento pertence a outra empresa."
         )
         
     records = db.query(DevelopmentPlan).filter(

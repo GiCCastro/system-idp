@@ -44,6 +44,12 @@ def create_development(
             status_code= status.HTTP_400_BAD_REQUEST,
             detail="O usuário informado não existe no sistema."
         )
+
+    if user_logged.get("enterprise_id") and existing_user.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. O usuário informado pertence a outra empresa."
+        )
         
     if not existing_position:
         raise HTTPException(
@@ -113,6 +119,12 @@ def list_development_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Usuário não encontrado."
         )
+
+    if user_logged.get("enterprise_id") and existing_user.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. O usuário informado pertence a outra empresa."
+        )
         
     records = db.query(Development).filter(
         Development.user_id == user_id
@@ -154,6 +166,12 @@ def generate_development_from_evaluation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="A avaliação informada não existe no sistema."
         )
+
+    if user_logged.get("enterprise_id") and existing_evaluation.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. A avaliação informada pertence a outra empresa."
+        )
         
     user_id = existing_evaluation.user_id
     existing_user = db.query(User).filter(User.id == user_id).first()
@@ -161,6 +179,12 @@ def generate_development_from_evaluation(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="O usuário associado à avaliação não existe no sistema."
+        )
+
+    if user_logged.get("enterprise_id") and existing_user.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. O colaborador avaliado pertence a outra empresa."
         )
         
     position_id = existing_evaluation.target_position_id or existing_user.position_id
