@@ -39,6 +39,12 @@ def create_evaluation_question(
             detail = "A avaliação informada não existe no sistema."
         )
 
+    if user_logged.get("enterprise_id") and existing_evaluation.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Esta avaliação pertence a outra empresa."
+        )
+
     existing_question = db.query(FormQuestion).filter(FormQuestion.id == evaluation_question.question_id).first()
     
     if not existing_question:
@@ -99,6 +105,12 @@ def list_evaluation_questions(
         raise HTTPException(
             status_code= status.HTTP_404_NOT_FOUND,
             detail="Avaliação não encontrada."
+        )
+
+    if user_logged.get("enterprise_id") and existing_evaluation.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Esta avaliação pertence a outra empresa."
         )
             
     is_evaluator = (existing_evaluation.evaluator_id == user_logged["user_id"])

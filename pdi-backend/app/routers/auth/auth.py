@@ -64,6 +64,12 @@ def register_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A empresa informada não existe no sistema."
         )
+
+    if user_logged.get("enterprise_id") and user.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Você só pode cadastrar colaboradores vinculados à sua própria empresa."
+        )
         
     existing_position = db.query(Position).filter(Position.id == user.position_id).first()
     if not existing_position:
@@ -80,6 +86,12 @@ def register_user(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="O usuário informado como gestor não existe no sistema."
+            )
+
+        if user_logged.get("enterprise_id") and existing_manager.enterprise_id != user_logged["enterprise_id"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="O gestor vinculado deve pertencer à mesma empresa do colaborador."
             )
             
         manager_role = db.query(Role).filter(Role.id == existing_manager.role_id).first()
