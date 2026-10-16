@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.config import security
 from app.schemas.competence.competence import CompetenceCreate, CompetenceCreateResponse, CompetenceResponse
 from app.models.competence.competence import Competence
+from app.utils.pagination import PaginatedResponse, paginate
 
 router = APIRouter(prefix="/competences", tags=["Competences"])
 
@@ -63,13 +64,15 @@ def create_competence(
     
 @router.get(
     "/list",
-    response_model=list[CompetenceResponse],
-    summary="Lista todas as competências cadastradas"
+    response_model=PaginatedResponse[CompetenceResponse],
+    summary="Lista todas as competências cadastradas com paginação"
 )
     
 def list_competences(
+    page: int = Query(default=1, ge=1, description="Número da página"),
+    limit: int = Query(default=10, ge=1, le=100, description="Quantidade por página"),
     db:Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
-        
-    return db.query(Competence).all()
+    query = db.query(Competence)
+    return paginate(query, page=page, limit=limit)

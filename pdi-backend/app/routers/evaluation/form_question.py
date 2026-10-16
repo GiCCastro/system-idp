@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -6,6 +6,7 @@ from app.config import security
 from app.models.competence.competence import Competence
 from app.models.evaluation.form_question import FormQuestion
 from app.schemas.evaluation.form_question import FormQuestionCreate, FormQuestionDetailResponse, FormQuestionResponse, FormQuestionCreateResponse
+from app.utils.pagination import PaginatedResponse, paginate
 
 router = APIRouter(prefix="/form_question", tags=["Form_Question"])
 
@@ -63,14 +64,16 @@ def create_form_question(
 
 @router.get(
     "/list",
-    response_model=list[FormQuestionDetailResponse],
-    summary="Lista todas as questões de formulário cadastradas."
+    response_model=PaginatedResponse[FormQuestionDetailResponse],
+    summary="Lista todas as questões de formulário cadastradas com paginação."
 )
 
 def list_form_questions(
+    page: int = Query(default=1, ge=1, description="Número da página"),
+    limit: int = Query(default=10, ge=1, le=100, description="Quantidade por página"),
     db:Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
-    
-    return db.query(FormQuestion).all()
+    query = db.query(FormQuestion)
+    return paginate(query, page=page, limit=limit)
      

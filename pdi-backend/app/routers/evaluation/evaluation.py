@@ -1,5 +1,6 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, status, Query
 from sqlalchemy import or_
+from app.utils.pagination import PaginatedResponse, paginate
 
 from sqlalchemy.orm import Session
 from app.config.database import get_db
@@ -192,11 +193,13 @@ def create_evaluation(
     
 @router.get(
     "/list",
-    response_model=list[EvaluationDetailResponse],
-    summary="Lista todas as avaliações cadastradas."
+    response_model=PaginatedResponse[EvaluationDetailResponse],
+    summary="Lista todas as avaliações cadastradas com paginação."
 )
 
 def list_evaluations(
+    page: int = Query(default=1, ge=1, description="Número da página"),
+    limit: int = Query(default=10, ge=1, le=100, description="Quantidade por página"),
     db:Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
@@ -211,7 +214,7 @@ def list_evaluations(
     query = db.query(Evaluation)
     if user_logged.get("enterprise_id"):
         query = query.filter(Evaluation.enterprise_id == user_logged["enterprise_id"])
-    return query.all()
+    return paginate(query, page=page, limit=limit)
 
 
 @router.get(
