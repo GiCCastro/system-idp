@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -7,6 +7,7 @@ from app.models.competence.competence import Competence
 from app.models.competence.position import Position
 from app.schemas.competence.position_competence import PositionCompetenceCreate, PositionCompetenceDetailResponse, PositionCompetenceResponse, PositionCompetenceCreateResponse
 from app.models.competence.position_competence import PositionCompetence
+from app.utils.pagination import PaginatedResponse, paginate
 
 router = APIRouter(prefix="/position_competence", tags=["Position_Competence"])
 
@@ -89,12 +90,15 @@ def create_relation_position_competence(
     
 @router.get(
     "/list",
-    response_model=list[PositionCompetenceDetailResponse],
-    summary="Lista todos os níveis esperados por cargo."
+    response_model=PaginatedResponse[PositionCompetenceDetailResponse],
+    summary="Lista todos os níveis esperados por cargo com paginação."
 )
 
 def list_position_competence(
+    page: int = Query(default=1, ge=1, description="Número da página"),
+    limit: int = Query(default=10, ge=1, le=100, description="Quantidade por página"),
     db:Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
-    return db.query(PositionCompetence).all()
+    query = db.query(PositionCompetence)
+    return paginate(query, page=page, limit=limit)

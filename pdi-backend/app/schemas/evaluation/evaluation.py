@@ -36,7 +36,7 @@ class EvaluationDetailResponse(BaseModel):
     user: UserSimpleResponse
     evaluator: UserSimpleResponse
     enterprise: EnterpriseResponse
-    target_position_id: Optional[PositionResponse] = None
+    target_position: Optional[PositionResponse] = None
     type: EvaluationTypeEnum
     cycle: str
     

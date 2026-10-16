@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.config import security
 from app.schemas.competence.position import PositionCreate, PositionResponse, PositionCreateResponse
 from app.models.competence.position import Position
+from app.utils.pagination import PaginatedResponse, paginate
 
 router = APIRouter(prefix="/position", tags=["Position"])
 
@@ -63,13 +64,15 @@ def create_position(
     
 @router.get(
     "/list",
-    response_model=list[PositionResponse],
-    summary="Lista todos os cargos cadastrados"    
+    response_model=PaginatedResponse[PositionResponse],
+    summary="Lista todos os cargos cadastrados com paginação"    
 )
 
 def list_position(
+    page: int = Query(default=1, ge=1, description="Número da página"),
+    limit: int = Query(default=10, ge=1, le=100, description="Quantidade por página"),
     db:Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
-    
-    return db.query(Position).all()
+    query = db.query(Position)
+    return paginate(query, page=page, limit=limit)
