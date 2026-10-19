@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -7,6 +7,7 @@ from app.models.competence.competence import Competence
 from app.models.competence.position import Position
 from app.schemas.competence.position_competence import PositionCompetenceCreate, PositionCompetenceDetailResponse, PositionCompetenceResponse, PositionCompetenceCreateResponse
 from app.models.competence.position_competence import PositionCompetence
+from app.utils.pagination import PaginatedResponse, paginate
 
 router = APIRouter(prefix="/position_competence", tags=["Position_Competence"])
 

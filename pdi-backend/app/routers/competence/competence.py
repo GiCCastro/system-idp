@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.config import security
 from app.schemas.competence.competence import CompetenceCreate, CompetenceCreateResponse, CompetenceResponse
 from app.models.competence.competence import Competence
+from app.utils.pagination import PaginatedResponse, paginate
 
 router = APIRouter(prefix="/competences", tags=["Competences"])
 

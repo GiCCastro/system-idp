@@ -1,4 +1,4 @@
-from fastapi import APIRouter,HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -7,6 +7,7 @@ from app.models.evaluation.evaluation import Evaluation
 from app.models.evaluation.evaluation_answer import EvaluationAnswer
 from app.models.evaluation.form_question import FormQuestion
 from app.schemas.evaluation.evaluation_answer import EvaluationAnswerCreate, EvaluationAnswerCreateResponse, EvaluationAnswerDetailResponse, EvaluationAnswerResponse
+from app.utils.pagination import PaginatedResponse, paginate
 
 router = APIRouter(prefix="/evaluation_answer", tags=["Evaluation_Answer"])
 
@@ -104,11 +105,13 @@ def create_evaluation_answer(
     
 @router.get(
     "/list",
-    response_model=list[EvaluationAnswerDetailResponse],
-    summary="Lista todas as questões respondidas."
+    response_model=PaginatedResponse[EvaluationAnswerDetailResponse],
+    summary="Lista todas as questões respondidas com paginação."
 )
 
 def list_evaluation_questions(
+    page: int = Query(default=1, ge=1, description="Número da página"),
+    limit: int = Query(default=10, ge=1, le=100, description="Quantidade por página"),
     db: Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
@@ -119,4 +122,4 @@ def list_evaluation_questions(
     )
     if user_logged.get("enterprise_id"):
         query = query.filter(Evaluation.enterprise_id == user_logged["enterprise_id"])
-    return query.all()
+    return paginate(query, page=page, limit=limit)

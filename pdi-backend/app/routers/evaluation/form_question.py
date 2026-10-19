@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -6,6 +6,7 @@ from app.config import security
 from app.models.competence.competence import Competence
 from app.models.evaluation.form_question import FormQuestion
 from app.schemas.evaluation.form_question import FormQuestionCreate, FormQuestionDetailResponse, FormQuestionResponse, FormQuestionCreateResponse
+from app.utils.pagination import PaginatedResponse, paginate
 
 router = APIRouter(prefix="/form_question", tags=["Form_Question"])
 
