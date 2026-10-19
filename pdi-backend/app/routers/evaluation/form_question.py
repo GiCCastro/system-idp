@@ -14,20 +14,25 @@ router = APIRouter(prefix="/form_question", tags=["Form_Question"])
     "/create",
     status_code=status.HTTP_201_CREATED,
     response_model=FormQuestionCreateResponse,
-    summary="Cria uma nova questão de formulário."
+    summary="Cria uma nova questão de formulário para a empresa do usuário logado."
 )
-
 def create_form_question(
     form_question: FormQuestionCreate,
-    db:Session = Depends(get_db),
+    db: Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
     roles_permitted = ["Recursos Humanos"]
-    
     if user_logged["role"] not in roles_permitted:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso Negado. Apenas membros do RH podem criar questões de formulário."
+        )
+
+    enterprise_id = user_logged.get("enterprise_id")
+    if not enterprise_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Usuário logado não possui empresa vinculada."
         )
         
     existing_competence = db.query(Competence).filter(Competence.id == form_question.competence_id).first()
@@ -36,10 +41,17 @@ def create_form_question(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A competência informada não existe no sistema."
         )
+
+    if existing_competence.enterprise_id != enterprise_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. A competência informada pertence a outra empresa."
+        )
         
     new_form_question = FormQuestion(
         question_text = form_question.question_text,
         competence_id = form_question.competence_id,
+        enterprise_id = enterprise_id
     )
     
     try:
@@ -65,15 +77,15 @@ def create_form_question(
 @router.get(
     "/list",
     response_model=PaginatedResponse[FormQuestionDetailResponse],
-    summary="Lista todas as questões de formulário cadastradas com paginação."
+    summary="Lista todas as questões de formulário da empresa cadastradas com paginação."
 )
-
 def list_form_questions(
     page: int = Query(default=1, ge=1, description="Número da página"),
     limit: int = Query(default=10, ge=1, le=100, description="Quantidade por página"),
-    db:Session = Depends(get_db),
+    db: Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
     query = db.query(FormQuestion)
+    if user_logged.get("enterprise_id"):
+        query = query.filter(FormQuestion.enterprise_id == user_logged["enterprise_id"])
     return paginate(query, page=page, limit=limit)
-     

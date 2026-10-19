@@ -13,33 +13,42 @@ router = APIRouter(prefix="/position", tags=["Position"])
     "/create",
     status_code=status.HTTP_201_CREATED,
     response_model=PositionCreateResponse,
-    summary="Cadastra um novo cargo no sistema"
+    summary="Cadastra um novo cargo no sistema para a empresa do usuário logado"
 )
-
 def create_position(
     position: PositionCreate,
-    db:Session = Depends(get_db),
+    db: Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
-    
     roles_permitted = ["Recursos Humanos"]
-    
     if user_logged["role"] not in roles_permitted:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso Negado. Apenas membros do RH podem cadastrar novos cargos."
         )
+
+    enterprise_id = user_logged.get("enterprise_id")
+    if not enterprise_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Usuário logado não possui empresa vinculada."
+        )
         
-    existing_position = db.query(Position).filter(Position.name.ilike(position.name)).first()
+    existing_position = db.query(Position).filter(
+        Position.name.ilike(position.name),
+        Position.enterprise_id == enterprise_id
+    ).first()
+
     if existing_position:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Este cargo já está cadastrado no sistema"
+            detail="Este cargo já está cadastrado para a sua empresa."
         )
         
     new_position = Position(
         name=position.name,
-        description=position.description
+        description=position.description,
+        enterprise_id=enterprise_id
     )
     
     try:
@@ -65,14 +74,15 @@ def create_position(
 @router.get(
     "/list",
     response_model=PaginatedResponse[PositionResponse],
-    summary="Lista todos os cargos cadastrados com paginação"    
+    summary="Lista todos os cargos da empresa cadastrados com paginação"    
 )
-
 def list_position(
     page: int = Query(default=1, ge=1, description="Número da página"),
     limit: int = Query(default=10, ge=1, le=100, description="Quantidade por página"),
-    db:Session = Depends(get_db),
+    db: Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
     query = db.query(Position)
+    if user_logged.get("enterprise_id"):
+        query = query.filter(Position.enterprise_id == user_logged["enterprise_id"])
     return paginate(query, page=page, limit=limit)

@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
 from app.config.database import Base
 
 class User(Base):
@@ -15,3 +16,7 @@ class User(Base):
     manager_id = Column(Integer, ForeignKey("user.id"), nullable=True)
     enterprise_id = Column(Integer, ForeignKey("enterprise.id"), nullable=False)
 
+    role = relationship("Role", foreign_keys=[role_id])
+    position = relationship("Position", foreign_keys=[position_id])
+    enterprise = relationship("Enterprise", foreign_keys=[enterprise_id])
+    manager = relationship("User", foreign_keys=[manager_id], remote_side=[id])

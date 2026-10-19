@@ -13,33 +13,42 @@ router = APIRouter(prefix="/competences", tags=["Competences"])
     "/create",
     status_code=status.HTTP_201_CREATED,
     response_model=CompetenceCreateResponse,
-    summary="Cadastra um nova competência no sistema"
+    summary="Cadastra uma nova competência no sistema para a empresa do usuário logado"
 )
-
 def create_competence(
     competence: CompetenceCreate,
-    db:Session = Depends(get_db),
+    db: Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
-    
     roles_permitted = ["Recursos Humanos"]
-    
     if user_logged["role"] not in roles_permitted:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso Negado. Apenas membros do RH podem cadastrar novas competências."
         )
+
+    enterprise_id = user_logged.get("enterprise_id")
+    if not enterprise_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Usuário logado não possui empresa vinculada."
+        )
         
-    existing_competence = db.query(Competence).filter(Competence.name.ilike(competence.name)).first()
+    existing_competence = db.query(Competence).filter(
+        Competence.name.ilike(competence.name),
+        Competence.enterprise_id == enterprise_id
+    ).first()
+
     if existing_competence:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Esta competência já está cadastrada no sistema"
+            detail="Esta competência já está cadastrada para a sua empresa."
         )
         
     new_competence = Competence(
         name=competence.name,
-        description=competence.description
+        description=competence.description,
+        enterprise_id=enterprise_id
     )
     
     try:
@@ -65,14 +74,15 @@ def create_competence(
 @router.get(
     "/list",
     response_model=PaginatedResponse[CompetenceResponse],
-    summary="Lista todas as competências cadastradas com paginação"
+    summary="Lista todas as competências da empresa cadastradas com paginação"
 )
-    
 def list_competences(
     page: int = Query(default=1, ge=1, description="Número da página"),
     limit: int = Query(default=10, ge=1, le=100, description="Quantidade por página"),
-    db:Session = Depends(get_db),
+    db: Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
     query = db.query(Competence)
+    if user_logged.get("enterprise_id"):
+        query = query.filter(Competence.enterprise_id == user_logged["enterprise_id"])
     return paginate(query, page=page, limit=limit)
