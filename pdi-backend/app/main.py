@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Imports estritos de todos os ROUTERS organizados nas novas subpastas
 from app.routers.auth import auth
+from app.routers.user import user
 from app.routers.competence import competence, position, position_competence
 from app.routers.evaluation import (
     evaluation,
@@ -30,6 +31,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(user.router)
 app.include_router(competence.router)
 app.include_router(position.router)
 app.include_router(position_competence.router)

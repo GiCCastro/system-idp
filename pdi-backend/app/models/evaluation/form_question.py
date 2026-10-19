@@ -8,5 +8,7 @@ class FormQuestion(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     question_text = Column(Text, nullable=False)
     competence_id = Column(Integer, ForeignKey("competence.id"), nullable=False)
+    enterprise_id = Column(Integer, ForeignKey("enterprise.id"), nullable=False)
 
     competence = relationship("Competence")
+    enterprise = relationship("Enterprise")

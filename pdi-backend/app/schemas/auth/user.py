@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
+from app.schemas.competence.position import PositionResponse
 
 
 class UserCreate(BaseModel):
@@ -25,7 +26,7 @@ class UserResponse(BaseModel):
     enterprise: str
     
     class Config:
-            from_attributes = True
+        from_attributes = True
             
 class UserSimpleResponse(BaseModel):
     id: int
@@ -35,7 +36,38 @@ class UserSimpleResponse(BaseModel):
 
     class Config:
         from_attributes = True
-    
+
+class RoleResponse(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+class EnterpriseResponse(BaseModel):
+    id: int
+    cnpj: str
+    name: str
+    email: EmailStr
+    niche: str
+
+    class Config:
+        from_attributes = True
+
+class UserDetailResponse(BaseModel):
+    id: int
+    cpf: str
+    name: str
+    email: EmailStr
+    np: str
+    role: RoleResponse
+    position: PositionResponse
+    enterprise: EnterpriseResponse
+    manager: Optional[UserSimpleResponse] = None
+
+    class Config:
+        from_attributes = True
+
 class UserCreateResponse(BaseModel):
     message: str
     user: UserResponse
@@ -49,4 +81,3 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
-
