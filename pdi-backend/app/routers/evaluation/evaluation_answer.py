@@ -6,6 +6,7 @@ from app.config import security
 from app.models.evaluation.evaluation import Evaluation
 from app.models.evaluation.evaluation_answer import EvaluationAnswer
 from app.models.evaluation.form_question import FormQuestion
+from app.models.evaluation.evaluation_question import EvaluationQuestion
 from app.schemas.evaluation.evaluation_answer import EvaluationAnswerCreate, EvaluationAnswerCreateResponse, EvaluationAnswerDetailResponse, EvaluationAnswerResponse
 from app.utils.pagination import PaginatedResponse, paginate
 
@@ -104,22 +105,55 @@ def create_evaluation_answer(
     )
     
 @router.get(
-    "/list",
+    "/{evaluation_id}",
     response_model=PaginatedResponse[EvaluationAnswerDetailResponse],
-    summary="Lista todas as questões respondidas com paginação."
+    summary="Lista as respostas de uma avaliação."
 )
 
-def list_evaluation_questions(
-    page: int = Query(default=1, ge=1, description="Número da página"),
-    limit: int = Query(default=10, ge=1, le=100, description="Quantidade por página"),
+def get_evaluation_answers(
+    evaluation_id: int,
     db: Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
+    existing_evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
+    if not existing_evaluation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Avaliação não encontrada."
+        )
+    if user_logged.get("enterprise_id") and existing_evaluation.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Esta avaliação pertence a outra empresa."
+        )
+
+    is_user = (existing_evaluation.user_id == user_logged["user_id"])
+    is_evaluator = (existing_evaluation.evaluator_id == user_logged["user_id"])
+    is_hr = (user_logged["role"] == "Recursos Humanos")
+    if not (is_user or is_evaluator or is_hr):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você não tem permissão para visualizar as respostas desta avaliação."
+        )
+        
+    total_questions = db.query(EvaluationQuestion).filter(
+        EvaluationQuestion.evaluation_id == evaluation_id
+    ).count()
     
-    query = (
-        db.query(EvaluationAnswer)
-        .join(Evaluation, EvaluationAnswer.evaluation_id == Evaluation.id)
-    )
-    if user_logged.get("enterprise_id"):
-        query = query.filter(Evaluation.enterprise_id == user_logged["enterprise_id"])
-    return paginate(query, page=page, limit=limit)
+    answers = db.query(EvaluationAnswer).filter(
+        EvaluationAnswer.evaluation_id == evaluation_id
+    ).all()
+    
+    total_answers = len(answers)
+    if total_answers == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esta avaliação ainda não possui nenhuma resposta registrada."
+        )
+        
+    if total_answers < total_questions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"A avaliação ainda não foi totalmente respondida ({total_answers} de {total_questions} perguntas respondidas)."
+        )
+    return answers
