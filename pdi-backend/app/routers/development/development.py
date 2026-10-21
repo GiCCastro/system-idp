@@ -6,7 +6,12 @@ from app.config.database import get_db
 from app.models.development.development import Development, DevelopmentStatusEnum
 from app.models.competence.position import Position
 from app.models.auth.user import User
-from app.schemas.development.development import DevelopmentCreate, DevelopmentCreateResponse, DevelopmentDetailResponse, DevelopmentResponse
+from app.schemas.development.development import (
+    DevelopmentCreate,
+    DevelopmentCreateResponse,
+    DevelopmentDetailResponse,
+    DevelopmentResponse,
+)
 
 
 router = APIRouter(prefix="/development", tags=["development"])
@@ -295,7 +300,7 @@ def generate_development_from_evaluation(
         user_id=user_id,
         position_id=position_id,
         title=f"PDI - Plano de Desenvolvimento ({existing_position.name})",
-        status=DevelopmentStatusEnum.PENDING
+        status=DevelopmentStatusEnum.IN_PROGRESS
     )
     
     db.add(new_development)
