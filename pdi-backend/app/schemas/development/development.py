@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -20,10 +21,12 @@ class DevelopmentResponse(DevelopmentCreate):
         from_attributes = True
         
 class DevelopmentDetailResponse(BaseModel):
+    id: Optional[int] = None
     user: UserSimpleResponse
     position: PositionResponse
     title: str
     status: DevelopmentStatusEnum = DevelopmentStatusEnum.PENDING
+    created_at: Optional[date] = None
     
     class Config: 
         from_attributes = True

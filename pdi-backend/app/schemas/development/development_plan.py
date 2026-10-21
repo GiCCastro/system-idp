@@ -23,11 +23,13 @@ class DevelopmentPlanResponse(DevelopmentPlanCreate):
         from_attributes = True
         
 class DevelopmentPlanDetailResponse(BaseModel):
+    id: Optional[int] = None
     development: DevelopmentResponse
     competence: CompetenceResponse
     gap: int
     action: str
     status: PlanStatusEnum = PlanStatusEnum.PENDING 
+    created_at: Optional[date] = None
     
     class Config: 
         from_attributes = True
@@ -35,3 +37,11 @@ class DevelopmentPlanDetailResponse(BaseModel):
 class DevelopmentPlanCreateResponse(BaseModel):
     message: str
     development_plan: DevelopmentPlanResponse
+
+class DevelopmentPlanStatusUpdate(BaseModel):
+    status: PlanStatusEnum
+
+class DevelopmentPlanStatusUpdateResponse(BaseModel):
+    message: str
+    development_plan: DevelopmentPlanResponse
+    development_status: str
