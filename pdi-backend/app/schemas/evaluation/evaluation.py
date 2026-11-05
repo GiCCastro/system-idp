@@ -10,7 +10,6 @@ class EvaluationCreate(BaseModel):
     user_id: int
     evaluator_id: int
     target_position_id: Optional[int] = None
-    enterprise_id: int
     type: EvaluationTypeEnum
     cycle: str
     
@@ -35,7 +34,6 @@ class EvaluationDetailResponse(BaseModel):
     created_at: date
     user: UserSimpleResponse
     evaluator: UserSimpleResponse
-    enterprise: EnterpriseResponse
     target_position: Optional[PositionResponse] = None
     type: EvaluationTypeEnum
     cycle: str

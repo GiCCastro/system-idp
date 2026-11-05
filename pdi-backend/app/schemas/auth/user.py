@@ -1,4 +1,5 @@
-from pydantic import BaseModel, EmailStr
+import re
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 from app.schemas.competence.position import PositionResponse
 
@@ -13,6 +14,13 @@ class UserCreate(BaseModel):
     manager_id: Optional[int] = None
     position_id: int
     enterprise_id: int
+
+    @field_validator("cpf", mode="before")
+    @classmethod
+    def clean_cpf(cls, value: str) -> str:
+        if isinstance(value, str):
+            return re.sub(r"\D", "", value)
+        return value
     
 class UserResponse(BaseModel):
     id: int

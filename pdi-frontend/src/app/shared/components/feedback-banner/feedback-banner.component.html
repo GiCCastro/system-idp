@@ -1,0 +1,46 @@
+@if (feedback.banner(); as item) {
+  <!-- Caixinha Flutuante (Toast Fixo no Canto Superior Direito — Sempre visível em qualquer rolagem) -->
+  <div class="toast-overlay" role="status" aria-live="polite">
+    <div
+      class="toast-box"
+      [ngClass]="{
+        'is-error': item.type === 'error',
+        'is-success': item.type === 'success',
+        'is-warning': item.type === 'warning',
+        'is-info': item.type === 'info'
+      }"
+    >
+      <div class="toast-indicator">
+        @if (item.type === 'success') {
+          <span class="mono-num">OK</span>
+        } @else if (item.type === 'error') {
+          <span class="mono-num">ERRO</span>
+        } @else {
+          <span class="mono-num">AVISO</span>
+        }
+      </div>
+
+      <div class="toast-content">
+        <div class="toast-header">
+          <strong>{{ item.title }}</strong>
+          <!-- @if (item.status) {
+            <span class="status-code mono-num">HTTP {{ item.status }}</span>
+          } -->
+          <!-- @if (item.endpoint) {
+            <span class="endpoint-tag mono-num">{{ item.endpoint }}</span>
+          } -->
+        </div>
+        <p class="toast-message">{{ item.message }}</p>
+      </div>
+
+      <button
+        type="button"
+        class="btn-close-toast"
+        title="Fechar notificação"
+        (click)="feedback.clear()"
+      >
+        ✕
+      </button>
+    </div>
+  </div>
+}

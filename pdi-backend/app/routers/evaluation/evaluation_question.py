@@ -1,12 +1,19 @@
-from fastapi import APIRouter,HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
 from app.config import security
+from app.models.development.development import Development
 from app.models.evaluation.evaluation import Evaluation
+from app.models.evaluation.evaluation_answer import EvaluationAnswer
 from app.models.evaluation.form_question import FormQuestion
 from app.models.evaluation.evaluation_question import EvaluationQuestion
-from app.schemas.evaluation.evaluation_question import EvaluationQuestionCreate, EvaluationQuestionCreateResponse, EvaluationQuestionDetailResponse, EvaluationQuestionResponse
+from app.schemas.evaluation.evaluation_question import (
+    EvaluationQuestionCreate,
+    EvaluationQuestionCreateResponse,
+    EvaluationQuestionDetailResponse,
+    EvaluationQuestionResponse,
+)
 
 router = APIRouter(prefix="/evaluation_question", tags=["Evaluation_Question"])
 
@@ -14,7 +21,7 @@ router = APIRouter(prefix="/evaluation_question", tags=["Evaluation_Question"])
     "/create",
     status_code=status.HTTP_201_CREATED,
     response_model=EvaluationQuestionCreateResponse,
-    summary="Cria uma nova relação entre avaliação e questão de formulário."
+    summary="Vincula uma questão de formulário ao ciclo completo (Autoavaliação e Avaliação do Gestor)."
 )
 
 def create_evaluation_question(
@@ -23,12 +30,12 @@ def create_evaluation_question(
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
     
-    roles_permitted = ["Recursos Humanos", "Gestor"]
+    roles_permitted = ["Recursos Humanos"]
     
     if user_logged["role"] not in roles_permitted:
         raise HTTPException(
             status_code = status.HTTP_403_FORBIDDEN,
-            detail = "Acesso negado. Apenas membros do RH podem criar uma relação entre avaliação e questão de formulário."
+            detail = "Acesso negado. Apenas membros do RH podem vincular questões de formulário ao ciclo de avaliação."
         )
         
     existing_evaluation = db.query(Evaluation).filter(Evaluation.id == evaluation_question.evaluation_id).first()
@@ -39,7 +46,7 @@ def create_evaluation_question(
             detail = "A avaliação informada não existe no sistema."
         )
 
-    if user_logged.get("enterprise_id") and existing_evaluation.enterprise_id != user_logged["enterprise_id"]:
+    if user_logged.get("enterprise_id") and existing_evaluation.user and existing_evaluation.user.enterprise_id != user_logged["enterprise_id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso negado. Esta avaliação pertence a outra empresa."
@@ -52,39 +59,95 @@ def create_evaluation_question(
             status_code = status.HTTP_400_BAD_REQUEST,
             detail = "A questão do formulário informada não existe no sistema."
         )
-        
-    existing_relation = db.query(EvaluationQuestion).filter(
-            EvaluationQuestion.evaluation_id == evaluation_question.evaluation_id,
-            EvaluationQuestion.question_id == evaluation_question.question_id
-        ).first() 
-        
-    if existing_relation:
+
+    # Busca ambas as avaliações (SELF e MANAGER) do mesmo colaborador e ciclo
+    self_evaluation = db.query(Evaluation).filter(
+        Evaluation.user_id == existing_evaluation.user_id,
+        Evaluation.cycle == existing_evaluation.cycle,
+        Evaluation.type == "SELF"
+    ).order_by(Evaluation.created_at.desc()).first()
+
+    manager_evaluation = db.query(Evaluation).filter(
+        Evaluation.user_id == existing_evaluation.user_id,
+        Evaluation.cycle == existing_evaluation.cycle,
+        Evaluation.type == "MANAGER"
+    ).order_by(Evaluation.created_at.desc()).first()
+
+    if not self_evaluation or not manager_evaluation:
+        missing = []
+        if not self_evaluation:
+            missing.append("Autoavaliação (SELF)")
+        if not manager_evaluation:
+            missing.append("Avaliação do Gestor (MANAGER)")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A relação entre esta avaliação e questão de formulário já foi criada."        
+            detail=f"Não é possível vincular a questão. O ciclo '{existing_evaluation.cycle}' está incompleto. Falta cadastrar: {', '.join(missing)}."
         )
-        
-    new_evaluation_question = EvaluationQuestion(
-        evaluation_id = evaluation_question.evaluation_id,
-        question_id = evaluation_question.question_id
+
+    # Trava: Impede adicionar questões se o ciclo já tiver respostas registradas ou PDI gerado
+    position_id = existing_evaluation.target_position_id or (
+        existing_evaluation.user.position_id if existing_evaluation.user else None
     )
-    
+    if position_id:
+        existing_dev = db.query(Development).filter(
+            Development.user_id == existing_evaluation.user_id,
+            Development.position_id == position_id
+        ).first()
+        if existing_dev:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Não é possível adicionar novas questões. Os gaps e o PDI para este colaborador já foram gerados."
+            )
+
+    existing_answers_count = db.query(EvaluationAnswer).filter(
+        EvaluationAnswer.evaluation_id.in_([self_evaluation.id, manager_evaluation.id])
+    ).count()
+
+    if existing_answers_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não é possível adicionar novas questões. Este ciclo de avaliação já possui respostas registradas."
+        )
+
+    evaluations_to_link = [self_evaluation, manager_evaluation]
+    created_links = []
+
+    for eval_inst in evaluations_to_link:
+        existing_relation = db.query(EvaluationQuestion).filter(
+            EvaluationQuestion.evaluation_id == eval_inst.id,
+            EvaluationQuestion.question_id == evaluation_question.question_id
+        ).first()
+
+        if not existing_relation:
+            new_link = EvaluationQuestion(
+                evaluation_id=eval_inst.id,
+                question_id=evaluation_question.question_id
+            )
+            db.add(new_link)
+            created_links.append(new_link)
+
+    if not created_links:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esta questão já está vinculada a ambas as avaliações (SELF e MANAGER) deste ciclo."
+        )
+
     try:
-        db.add(new_evaluation_question)
         db.commit()
-        db.refresh(new_evaluation_question)
+        for link in created_links:
+            db.refresh(link)
     except Exception as e:
         db.rollback()
         raise HTTPException(
             status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail = f"Erro ao criar a relação entre avaliação e questão de formulário: {str(e)}"
+            detail = f"Erro ao vincular questão ao ciclo de avaliação: {str(e)}"
         )
         
     return EvaluationQuestionCreateResponse(
-        message = "Relação entre avaliação e questão de formulário criada com sucesso!",
+        message = "Questão vinculada com sucesso ao ciclo completo (Autoavaliação e Avaliação do Gestor)!",
         evaluation_question = EvaluationQuestionResponse(
-            evaluation_id=new_evaluation_question.evaluation_id,
-            question_id=new_evaluation_question.question_id
+            evaluation_id=existing_evaluation.id,
+            question_id=evaluation_question.question_id
         )
     )
     
@@ -107,7 +170,7 @@ def list_evaluation_questions(
             detail="Avaliação não encontrada."
         )
 
-    if user_logged.get("enterprise_id") and existing_evaluation.enterprise_id != user_logged["enterprise_id"]:
+    if user_logged.get("enterprise_id") and existing_evaluation.user and existing_evaluation.user.enterprise_id != user_logged["enterprise_id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso negado. Esta avaliação pertence a outra empresa."
@@ -127,4 +190,3 @@ def list_evaluation_questions(
         ).all()  
     
     return records  
-    

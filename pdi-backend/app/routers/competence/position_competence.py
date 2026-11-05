@@ -122,4 +122,28 @@ def list_position_competence(
     )
     if user_logged.get("enterprise_id"):
         query = query.filter(Position.enterprise_id == user_logged["enterprise_id"])
+    query = query.order_by(Position.id.asc(), PositionCompetence.competence_id.asc())
     return paginate(query, page=page, limit=limit)
+
+
+@router.get(
+    "/{position_id}",
+    response_model=list[PositionCompetenceDetailResponse],
+    summary="Lista todos os níveis esperados por cargo."
+)
+def list_position_competence_by_position(
+    position_id: int,
+    db: Session = Depends(get_db),
+    user_logged: dict = Depends(security.get_logged_in_user)
+):
+    query = (
+        db.query(PositionCompetence)
+        .join(Position, PositionCompetence.position_id == Position.id)
+    )
+    
+    query = query.filter(Position.id == position_id)
+    
+    if user_logged.get("enterprise_id"):
+        query = query.filter(Position.enterprise_id == user_logged["enterprise_id"])
+
+    return query.all()

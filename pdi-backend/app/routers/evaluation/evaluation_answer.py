@@ -39,7 +39,7 @@ def create_evaluation_answer(
             detail = "Acesso negado. Apenas o avaliador pode responder as questões desta avaliação."
         )
 
-    if user_logged.get("enterprise_id") and existing_evaluation.enterprise_id != user_logged["enterprise_id"]:
+    if user_logged.get("enterprise_id") and existing_evaluation.user and existing_evaluation.user.enterprise_id != user_logged["enterprise_id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso negado. Esta avaliação pertence a outra empresa."
@@ -106,7 +106,7 @@ def create_evaluation_answer(
     
 @router.get(
     "/{evaluation_id}",
-    response_model=PaginatedResponse[EvaluationAnswerDetailResponse],
+    response_model=list[EvaluationAnswerDetailResponse],
     summary="Lista as respostas de uma avaliação."
 )
 
@@ -121,7 +121,7 @@ def get_evaluation_answers(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Avaliação não encontrada."
         )
-    if user_logged.get("enterprise_id") and existing_evaluation.enterprise_id != user_logged["enterprise_id"]:
+    if user_logged.get("enterprise_id") and existing_evaluation.user and existing_evaluation.user.enterprise_id != user_logged["enterprise_id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso negado. Esta avaliação pertence a outra empresa."

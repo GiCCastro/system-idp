@@ -1,0 +1,418 @@
+<div class="page-header">
+  <div>
+    <span class="page-eyebrow">GESTÃO DE DESEMPENHO • {{ authService.userRole() | uppercase }}</span>
+    <h1>Ciclos de Avaliação de Competências</h1>
+    <p class="page-desc">
+      @if (authService.isCollaborator()) {
+      Consulte suas autoavaliações, responda os questionários do ciclo e acompanhe suas notas enviadas.
+      } @else if (authService.isManager()) {
+      Abra avaliações para seus liderados, responda as avaliações de gestor e vincule questões ao formulário.
+      } @else {
+      Administração completa de ciclos, sistematização de questionários e processamento de PDI.
+      }
+    </p>
+  </div>
+
+  @if (authService.isHr() || authService.isManager()) {
+  <button type="button" class="btn btn-primary" (click)="showCreatePanel.set(true)">
+    + Abrir Ciclo de Avaliação
+  </button>
+  }
+</div>
+
+@if ((authService.isHr() || authService.isManager()) && showCreatePanel()) {
+<div class="modal-backdrop" (click)="showCreatePanel.set(false)">
+  <section class="panel modal-dialog modal-md" (click)="$event.stopPropagation()">
+    <div class="panel-header modal-header">
+      <div>
+        <div class="panel-title">Abertura de Avaliação de Desempenho</div>
+        <div class="panel-subtitle">
+          Para sistematizar perguntas do ciclo, o colaborador deve possuir autoavaliação e avaliação do gestor no mesmo ciclo.
+        </div>
+      </div>
+      <button type="button" class="btn-close-modal" (click)="showCreatePanel.set(false)" title="Fechar (Esc)">
+        ✕
+      </button>
+    </div>
+    <div class="panel-body modal-body">
+      <form (ngSubmit)="createEvaluation()" class="eval-create-grid">
+        <div class="form-group">
+          <label class="form-label">Colaborador Avaliado *</label>
+          <select class="form-control" name="evalUserId" [(ngModel)]="createForm.user_id"
+            (ngModelChange)="onUserSelected($event)" required>
+            <option [ngValue]="0" disabled>Selecione o colaborador...</option>
+            @for (u of knownUsers(); track u.id) {
+            <option [ngValue]="u.id">
+              {{ u.name }} • Cargo: {{ u.position.name }}
+            </option>
+            }
+          </select>
+
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Modalidade de Abertura *</label>
+          <select class="form-control" name="creationMode" [(ngModel)]="creationMode" required>
+            <option [ngValue]="''" disabled>Selecione a Modalidade...</option>
+            <option value="SELF">Autoavaliação</option>
+            <option value="MANAGER">Avaliação do Gestor</option>
+          </select>
+        </div>
+
+        @if (creationMode === 'MANAGER') {
+        <div class="form-group">
+          <label class="form-label">Gestor avaliador</label>
+          <select class="form-control" name="evaluatorId" [(ngModel)]="createForm.evaluator_id" required>
+            <option [ngValue]="0" disabled>Selecione o avaliador...</option>
+            @for (u of getEvaluatorOptions(); track u.id) {
+            <option [ngValue]="u.id">Gestor(a): {{ u.name }}</option>
+            }
+          </select>
+
+        </div>
+        }
+
+        <div class="form-group">
+          <label class="form-label">Identificador do Ciclo *</label>
+          <input type="text" class="form-control mono-num" name="cycle" [(ngModel)]="createForm.cycle"
+            placeholder="Ex: 2026.2 ou Q4-2026" required />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Cargo Alvo da Avaliação</label>
+          <select class="form-control" name="targetPos" [(ngModel)]="createForm.target_position_id">
+            <option [ngValue]="null">Cargo atual do colaborador</option>
+            @for (p of positions(); track p.id) {
+            <option [ngValue]="p.id">{{ p.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="form-actions-row">
+          <button type="button" class="btn btn-secondary" (click)="showCreatePanel.set(false)">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-primary" [disabled]="apiClient.isLoading()">
+            {{ apiClient.isLoading() ? 'Salvando...' : 'Confirmar' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+</div>
+}
+
+@if (authService.isHr() || authService.isManager()) {
+<section class="panel mb-section">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">Filtrar Avaliações por Colaborador</div>
+    </div>
+  </div>
+  <div class="panel-body">
+    <form (ngSubmit)="loadEvaluationsForUser()" class="filter-bar">
+      @if (knownUsers().length > 0) {
+      <div class="filter-field">
+        <label class="form-label">Selecionar Colaborador</label>
+        <select class="form-control" name="selectedUserSelect" [(ngModel)]="filterUserId"
+          (ngModelChange)="loadEvaluationsForUser()">
+          <option [ngValue]="null">-- Todos os colaboradores --</option>
+          @for (u of knownUsers(); track u.id) {
+          <option [ngValue]="u.id">{{ u.name }} (NP: {{ u.np }})</option>
+          }
+        </select>
+      </div>
+      }
+      @if (authService.isHr() && !showingAllHr()) {
+      <button type="button" class="btn btn-secondary" (click)="filterUserId = null; loadAllHrEvaluations(1)">
+        Mostrar Todos
+      </button>
+      }
+    </form>
+  </div>
+</section>
+}
+
+<div class="evaluations-workspace">
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">Relação de Avaliações</div>
+        <div class="panel-subtitle">
+          Clique em "Responder / Questões" ou "Respostas" para abrir o formulário em janela modal.
+        </div>
+      </div>
+      @if (authService.isHr() && showingAllHr()) {
+      <div class="pagination-controls">
+        <button type="button" class="btn btn-secondary btn-sm" [disabled]="page() <= 1 || apiClient.isLoading()"
+          (click)="loadAllHrEvaluations(page() - 1)">
+          ←
+        </button>
+        <span class="mono-num">{{ page() }} / {{ totalPages() }}</span>
+        <button type="button" class="btn btn-secondary btn-sm"
+          [disabled]="page() >= totalPages() || apiClient.isLoading()" (click)="loadAllHrEvaluations(page() + 1)">
+          →
+        </button>
+      </div>
+      }
+    </div>
+
+    <div class="panel-body p-0">
+      @if (evaluations().length === 0) {
+      <div class="empty-state">
+        Nenhuma avaliação localizada para o filtro atual.
+      </div>
+      } @else {
+      <div class="data-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>
+                <button
+                  type="button"
+                  class="th-sort-btn"
+                  (click)="toggleSortOrder()"
+                  [title]="sortOrder() === 'desc' ? 'Ordenado do mais recente para o mais antigo (DESC). Clique para inverter (ASC).' : 'Ordenado do mais antigo para o mais recente (ASC). Clique para inverter (DESC).'"
+                >
+                  <span>Ciclo</span>
+                  <span class="sort-arrow mono-num">{{ sortOrder() === 'desc' ? '↓ DESC' : '↑ ASC' }}</span>
+                </button>
+              </th>
+              <th>Colaborador Avaliado</th>
+              <th>Modalidade</th>
+              <th>Avaliador Responsável</th>
+              <th>Cargo Alvo</th>
+              <th>Ações Operacionais</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (ev of evaluations(); track ev.id) {
+            <tr [class.selected-row]="selectedEvaluation()?.id === ev.id">
+              <td><strong class="mono-num">{{ ev.cycle }}</strong></td>
+              <td>
+                <div class="cell-primary">{{ ev.user.name }}</div>
+                <div class="cell-sub mono-num">NP {{ ev.user.np }}</div>
+              </td>
+              <td>
+                <span class="badge" [ngClass]="ev.type === 'SELF' ? 'badge-info' : 'badge-warning'">
+                  {{ ev.type === 'SELF' ? 'Autoavaliação' : 'Gestor' }}
+                </span>
+              </td>
+              <td>
+                <div>{{ ev.evaluator.name }}</div>
+              </td>
+              <td>{{ ev.target_position?.name || 'Cargo Atual' }}</td>
+              <td>
+                <button
+                  type="button"
+                  class="btn btn-primary btn-sm"
+                  (click)="selectEvaluation(ev, 'questionnaire')"
+                >
+                  {{ canAnswerEvaluation(ev) ? 'Responder Avaliação' : 'Abrir Avaliação' }}
+                </button>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      }
+    </div>
+  </section>
+</div>
+
+<!-- MODAL DE DETALHES DA AVALIAÇÃO (QUESTIONÁRIO E RESPOSTAS) -->
+@if (selectedEvaluation(); as activeEval) {
+<div class="modal-backdrop" (click)="selectedEvaluation.set(null)">
+  <section class="panel modal-dialog modal-lg" (click)="$event.stopPropagation()">
+    <div class="panel-header modal-header">
+      <div>
+        <div class="modal-badges-row">
+          <span class="badge" [ngClass]="activeEval.type === 'SELF' ? 'badge-info' : 'badge-warning'">
+            {{ activeEval.type === 'SELF' ? 'Autoavaliação' : 'Avaliação do Gestor' }}
+          </span>
+          <span class="mono-num modal-cycle-tag">Ciclo {{ activeEval.cycle }}</span>
+        </div>
+        <div class="panel-title mt-4">
+          {{ activeEval.user.name }}
+        </div>
+        <div class="panel-subtitle">
+          Avaliador responsável: <strong>{{ activeEval.evaluator.name }}</strong>
+          • Cargo: <strong>{{ activeEval.target_position?.name || 'Cargo Atual' }}</strong>
+        </div>
+      </div>
+
+      <div class="detail-tabs">
+        <button type="button" class="btn btn-sm"
+          [ngClass]="detailMode() === 'questionnaire' ? 'btn-primary' : 'btn-secondary'"
+          (click)="switchDetailMode('questionnaire')">
+          Questionário ({{ evaluationQuestions().length }})
+        </button>
+        <button type="button" class="btn btn-sm"
+          [ngClass]="detailMode() === 'answers' ? 'btn-primary' : 'btn-secondary'"
+          (click)="switchDetailMode('answers')">
+          Respostas Registradas
+        </button>
+        <button type="button" class="btn-close-modal" (click)="selectedEvaluation.set(null)" title="Fechar modal">
+          ✕
+        </button>
+      </div>
+    </div>
+
+    <div class="panel-body modal-body">
+      @if (authService.isHr() && detailMode() === 'questionnaire' && !isCycleLocked()) {
+      <div class="attach-question-box">
+        <div class="attach-title">
+          Vincular Questão Manualmente ao Ciclo Completo
+        </div>
+        <div class="attach-row">
+          <select class="form-control" [(ngModel)]="manualQuestionIdToLink">
+            <option [ngValue]="0">Selecione uma questão disponível no banco...</option>
+            @for (fq of availableQuestionsToLink(); track fq.id) {
+            <option [ngValue]="fq.id">
+              [{{ fq.competence.name }}] — {{ fq.question_text | slice:0:85 }}
+            </option>
+            }
+          </select>
+          <button type="button" class="btn btn-outline-brand"
+            [disabled]="!manualQuestionIdToLink || apiClient.isLoading()" (click)="linkManualQuestion()">
+            Vincular ao Ciclo
+          </button>
+        </div>
+      </div>
+      } @else if (authService.isHr() && detailMode() === 'questionnaire' && isCycleLocked()) {
+      <div class="alert alert-info">
+        <span>
+          <strong>Questionário consolidado:</strong> este ciclo já possui respostas registradas ou PDI gerado, portanto
+          está fechado para inclusão de novas questões.
+        </span>
+      </div>
+      }
+
+      @if (detailMode() === 'questionnaire') {
+      @if (evaluationQuestions().length === 0) {
+      <div class="empty-state">
+        <p>Nenhuma questão vinculada a esta avaliação até o momento.</p>
+        @if (authService.isHr()) {
+        <p class="mt-8">
+          <strong>Você pode gerar as questões automaticamente pela IA (requer autoavaliação e avaliação do gestor no
+          ciclo)</strong> ou vincular uma questão manualmente no seletor acima.
+        </p>
+        <div class="mt-12">
+          <button type="button" class="btn btn-ai" [disabled]="apiClient.isLoading()"
+            (click)="generateCycleQuestions(activeEval)">
+            ✦ {{ apiClient.isLoading() ? 'Gerando questões com IA...' : 'Gerar Questões do Ciclo com IA' }}
+          </button>
+        </div>
+        }
+      </div>
+      } @else {
+      <form (ngSubmit)="submitEvaluationAnswers()">
+        <div class="questions-list">
+          @for (eq of evaluationQuestions(); track eq.question.id; let idx = $index) {
+          <div class="question-card">
+            <div class="question-header">
+              <span class="q-index mono-num">QUESTÃO {{ idx + 1 }} (ID #{{ eq.question.id }})</span>
+              <span class="badge badge-neutral">
+                {{ getCompetenceName(eq.question.competence_id) }}
+              </span>
+            </div>
+            <p class="question-text">{{ eq.question.question_text }}</p>
+
+            @if (canAnswerEvaluation(activeEval)) {
+            <div class="answer-controls">
+              <div class="score-group">
+                <span class="form-label">Conceito / Nota (Escala 1 a 5) *</span>
+                <div class="score-buttons">
+                  @for (scoreVal of [1, 2, 3, 4, 5]; track scoreVal) {
+                  <button type="button" class="score-btn mono-num"
+                    [class.active]="answerDrafts[eq.question.id].score === scoreVal"
+                    (click)="setDraftScore(eq.question.id, scoreVal)">
+                    {{ scoreVal }} — {{ getScoreLabel(scoreVal) }}
+                  </button>
+                  }
+                </div>
+              </div>
+
+              <div class="form-group mb-0">
+                <label class="form-label">Evidências e Justificativa Técnica *</label>
+                <textarea class="form-control" [name]="'ans_' + eq.question.id"
+                  [(ngModel)]="answerDrafts[eq.question.id].answer_text"
+                  placeholder="Relate exemplos práticos, entregas e observações que fundamentam a nota atribuída..."
+                  required></textarea>
+              </div>
+            </div>
+            }
+          </div>
+          }
+        </div>
+
+        @if (canAnswerEvaluation(activeEval)) {
+        <div class="submit-answers-bar">
+          <span class="bar-note">
+            Avaliador designado: <strong>{{ activeEval.evaluator.name }}</strong>
+          </span>
+          <div class="modal-footer-actions">
+            <button type="button" class="btn btn-secondary" (click)="selectedEvaluation.set(null)">
+              Cancelar
+            </button>
+            <button type="submit" class="btn btn-primary" [disabled]="apiClient.isLoading()">
+              {{ apiClient.isLoading() ? 'Enviando Respostas...' : 'Registrar Respostas Definitivas' }}
+            </button>
+          </div>
+        </div>
+        } @else {
+        <div class="alert alert-info mt-12">
+          <span>
+            Visualização somente leitura: o preenchimento desta avaliação compete ao avaliador designado
+            (<strong>{{ activeEval.evaluator.name }}</strong>).
+          </span>
+        </div>
+        }
+      </form>
+      }
+      }
+
+      @if (detailMode() === 'answers') {
+      @if (evaluationAnswers().length === 0) {
+      <div class="empty-state">
+        Nenhuma resposta consolidada disponível para esta avaliação.
+      </div>
+      } @else {
+      <div class="data-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Questão</th>
+              <th>Competência</th>
+              <th>Nota Atribuída</th>
+              <th>Evidência / Resposta Registrada</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (ans of evaluationAnswers(); track ans.question.id) {
+            <tr>
+              <td>
+                <div class="mono-num cell-sub">Questão</div>
+                <div>{{ ans.question.question_text }}</div>
+              </td>
+              <td>
+                <span class="badge badge-neutral">
+                  {{ getCompetenceName(ans.question.competence_id) }}
+                </span>
+              </td>
+              <td>
+                <span class="badge badge-info mono-num">Nota {{ ans.score }} / 5</span>
+              </td>
+              <td>{{ ans.answer_text }}</td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      }
+      }
+    </div>
+  </section>
+</div>
+}

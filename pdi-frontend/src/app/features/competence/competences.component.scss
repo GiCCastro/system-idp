@@ -1,0 +1,141 @@
+.page-header {
+  margin-bottom: 18px;
+}
+
+.page-eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  color: var(--brand-primary);
+  margin-bottom: 4px;
+}
+
+.page-header h1 {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+.page-desc {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+}
+
+.module-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-strong);
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.module-tab {
+  padding: 10px 16px;
+  background-color: var(--bg-Subtle);
+  border: 1px solid var(--border-subtle);
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+
+  &.active {
+    background-color: var(--bg-surface);
+    color: var(--brand-primary);
+    border-color: var(--border-strong);
+    border-top: 2px solid var(--brand-primary);
+  }
+}
+
+.tab-layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 20px;
+  align-items: start;
+
+  &.single-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1024px) {
+  .tab-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.scale-selector {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.scale-btn {
+  padding: 8px 4px;
+  background-color: var(--bg-surface-alt);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+
+  &.selected {
+    background-color: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #ffffff;
+  }
+}
+
+.btn-full {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.filter-box {
+  min-width: 220px;
+}
+
+.header-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cargo-merged-cell {
+  vertical-align: top;
+  background-color: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  min-width: 190px;
+}
+
+.cargo-count-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.cargo-group-divider > td {
+  border-top: 2px solid var(--border-strong);
+}
+
+.p-0 {
+  padding: 0;
+}
+
+.empty-state {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text-secondary);
+}
