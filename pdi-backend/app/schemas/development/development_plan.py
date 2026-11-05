@@ -11,7 +11,7 @@ from app.schemas.development.development import DevelopmentResponse
 class DevelopmentPlanCreate(BaseModel):
     development_id: int
     competence_id: int
-    gap: int
+    gap: float
     action: str
     status: PlanStatusEnum = PlanStatusEnum.PENDING
     
@@ -26,7 +26,7 @@ class DevelopmentPlanDetailResponse(BaseModel):
     id: Optional[int] = None
     development: DevelopmentResponse
     competence: CompetenceResponse
-    gap: int
+    gap: float
     action: str
     status: PlanStatusEnum = PlanStatusEnum.PENDING 
     created_at: Optional[date] = None
