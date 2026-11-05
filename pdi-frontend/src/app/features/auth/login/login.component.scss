@@ -1,0 +1,246 @@
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 460px 1fr;
+  background-color: var(--bg-canvas);
+}
+
+@media (max-width: 960px) {
+  .login-page {
+    grid-template-columns: 1fr;
+  }
+  .institutional-column {
+    display: none;
+  }
+}
+
+.institutional-column {
+  background-color: var(--brand-primary);
+  color: var(--text-inverse);
+  padding: 44px 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-right: 1px solid #0f313a;
+}
+
+.brand-header {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 36px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: #ffffff;
+}
+
+.system-code {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  color: #b7d2d9;
+  margin-bottom: 6px;
+}
+
+.brand-text h1 {
+  color: #ffffff;
+  font-size: 21px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.institutional-body {
+  margin: 36px 0;
+}
+
+.lead-text {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #d6e4e8;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.section-caption {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #b7d2d9;
+  margin-bottom: 16px;
+}
+
+.profiles-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-item {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background-color: rgba(11, 37, 44, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+}
+
+.profile-index {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: #d1e3e8;
+  padding-top: 2px;
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+
+  strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffffff;
+  }
+
+  span {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #c8dade;
+  }
+}
+
+.institutional-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  color: #abc5cc;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.form-column {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+}
+
+.login-box {
+  width: 100%;
+  max-width: 430px;
+  padding: 32px 30px;
+  border-top: 3px solid var(--brand-primary);
+}
+
+.login-box-header {
+  margin-bottom: 22px;
+
+  .auth-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--brand-primary);
+    margin-bottom: 6px;
+  }
+
+  h2 {
+    font-size: 20px;
+    margin-bottom: 6px;
+  }
+
+  p {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+}
+
+.mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background-color: var(--bg-Subtle);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  margin-bottom: 20px;
+}
+
+.mode-tab {
+  padding: 7px 10px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all 0.12s ease;
+
+  &.active {
+    background-color: var(--bg-surface);
+    color: var(--brand-primary);
+    box-shadow: var(--shadow-subtle);
+  }
+}
+
+.label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.toggle-pass-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--brand-primary);
+  cursor: pointer;
+}
+
+.submit-row {
+  margin-top: 20px;
+}
+
+.btn-block {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 13.5px;
+}
+
+.origin-link {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.login-box-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.footer-note {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}

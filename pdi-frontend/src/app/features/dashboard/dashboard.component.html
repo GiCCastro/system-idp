@@ -1,0 +1,160 @@
+<div class="page-header">
+  <div>
+    <span class="page-eyebrow">CENTRAL DE OPERAÇÕES • {{ authService.userRole() | uppercase }}</span>
+    <h1>Painel Operacional de Gestão de PDI</h1>
+    <p class="page-desc">
+      Acompanhamento de indicadores corporativos, ciclos de avaliação ativos e atalhos para os módulos do sistema.
+    </p>
+  </div>
+  <div class="header-actions">
+    <a routerLink="/avaliacoes" class="btn btn-primary">Acessar Avaliações</a>
+    <a routerLink="/pdi" class="btn btn-secondary">Acompanhar PDI</a>
+  </div>
+</div>
+
+<!-- Indicadores da Empresa -->
+<section class="metrics-grid">
+  @if (authService.isHr()) {
+    <a routerLink="/colaboradores" class="metric-card panel">
+      <span class="metric-label">COLABORADORES NA EMPRESA</span>
+      <strong class="metric-value mono-num">{{ hrTotalUsers() }}</strong>
+      <span class="metric-legend">Gerenciar quadro funcional →</span>
+    </a>
+    <a routerLink="/avaliacoes"  class="metric-card panel">
+      <span class="metric-label">AVALIAÇÕES REGISTRADAS</span>
+      <strong class="metric-value mono-num">{{ hrTotalEvaluations() }}</strong>
+      <span class="metric-legend">Gerenciar ciclos →</span>
+    </a>
+  }
+  <a routerLink="/competencias" class="metric-card panel">
+    <span class="metric-label">CARGOS CATALOGADOS</span>
+    <strong class="metric-value mono-num">{{ totalPositions() }}</strong>
+    <span class="metric-legend">Ver catálogo de cargos →</span>
+  </a>
+  <a routerLink="/competencias" class="metric-card panel">
+    <span class="metric-label">COMPETÊNCIAS MAPEADAS</span>
+    <strong class="metric-value mono-num">{{ totalCompetences() }}</strong>
+    <span class="metric-legend">Ver dicionário →</span>
+  </a>
+  @if (!authService.isHr()) {
+    <a routerLink="/competencias" class="metric-card panel">
+      <span class="metric-label">VÍNCULOS NA MATRIZ</span>
+      <strong class="metric-value mono-num">{{ totalMatrixLinks() }}</strong>
+      <span class="metric-legend">Consultar matriz →</span>
+    </a>
+    <a routerLink="/competencias" class="metric-card panel">
+      <span class="metric-label">QUESTÕES NO BANCO</span>
+      <strong class="metric-value mono-num">{{ totalQuestions() }}</strong>
+      <span class="metric-legend">Ver banco de questões →</span>
+    </a>
+  }
+</section>
+
+<!-- Ciclos de Avaliação Recentes / Ativos -->
+@if (authService.isHr() || authService.isCollaborator()) {
+  <section class="panel mb-section">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">
+          {{ authService.isHr() ? 'Últimos Ciclos de Avaliação da Empresa' : 'Minhas Autoavaliações' }}
+        </div>
+        <div class="panel-subtitle">
+          {{ authService.isHr() ? 'Registros mais recentes de avaliações' : 'Ciclos vinculados à sua matrícula para resposta' }}
+        </div>
+      </div>
+      <a routerLink="/avaliacoes" class="btn btn-outline-brand btn-sm">Ver Todas as Avaliações</a>
+    </div>
+    <div class="panel-body p-0">
+      @if (recentEvaluations().length === 0) {
+        <div class="empty-box">
+          Nenhuma avaliação registrada até o momento.
+        </div>
+      } @else {
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>
+                  <button
+                    type="button"
+                    class="th-sort-btn"
+                    (click)="toggleSortOrder()"
+                    [title]="sortOrder() === 'desc' ? 'Ordenado do mais recente para o mais antigo (DESC). Clique para inverter (ASC).' : 'Ordenado do mais antigo para o mais recente (ASC). Clique para inverter (DESC).'"
+                  >
+                    <span>Ciclo</span>
+                    <span class="sort-arrow mono-num">{{ sortOrder() === 'desc' ? '↓ DESC' : '↑ ASC' }}</span>
+                  </button>
+                </th>
+                <th>Colaborador Avaliado</th>
+                <th>Modalidade</th>
+                <th>Avaliador</th>
+                <th>Cargo Alvo</th>
+                <th>Data</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (ev of recentEvaluations(); track ev.id) {
+                <tr>
+                  <td><strong class="mono-num">{{ ev.cycle }}</strong></td>
+                  <td>{{ ev.user.name }}</td>
+                  <td>
+                    <span class="badge" [ngClass]="ev.type === 'SELF' ? 'badge-info' : 'badge-warning'">
+                      {{ ev.type === 'SELF' ? 'Autoavaliação' : 'Gestor' }}
+                    </span>
+                  </td>
+                  <td>{{ ev.evaluator.name }}</td>
+                  <td>{{ ev.target_position?.name || 'Cargo Atual' }}</td>
+                  <td class="mono-num">{{ ev.created_at }}</td>
+                  <td>
+                    <a
+                      [routerLink]="['/avaliacoes']"
+                      [queryParams]="{ evaluationId: ev.id }"
+                      class="btn btn-secondary btn-sm"
+                    >
+                      Abrir Avaliação
+                    </a>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </section>
+}
+
+<!-- Roteiro Operacional do Ciclo de PDI -->
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">Fluxo de Governança do Ciclo de PDI</div>
+      <div class="panel-subtitle">Etapas operacionais para avaliação de competências e geração do plano 70-20-10</div>
+    </div>
+  </div>
+  <div class="panel-body">
+    <div class="workflow-steps">
+      <div class="workflow-step">
+        <div class="step-num mono-num">ETAPA 01</div>
+        <strong>Cargos e Matriz</strong>
+        <p>O RH cadastra os cargos, as competências e define o nível esperado (1 a 5) por cargo.</p>
+      </div>
+      <div class="workflow-step">
+        <div class="step-num mono-num">ETAPA 02</div>
+        <strong>Abertura do Ciclo (Autoavaliação + Gestor)</strong>
+        <p>Para cada colaborador e ciclo, são abertas as 2 avaliações: Autoavaliação e Gestor.</p>
+      </div>
+      <div class="workflow-step">
+        <div class="step-num mono-num">ETAPA 03</div>
+        <strong>Questionário da Avaliação</strong>
+        <p>Com o par Autoavaliação e Avaliação do Gestor criado no ciclo, o RH gera ou vincula as questões técnicas e comportamentais.</p>
+      </div>
+      <div class="workflow-step">
+        <div class="step-num mono-num">ETAPA 04</div>
+        <strong>Respostas e Calibragem 70-20-10</strong>
+        <p>Colaborador e Gestor respondem suas avaliações (notas 1 a 5). Em seguida, o RH processa os gaps e gera o PDI.</p>
+      </div>
+    </div>
+  </div>
+</section>

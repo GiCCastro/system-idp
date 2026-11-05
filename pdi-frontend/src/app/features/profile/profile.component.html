@@ -1,0 +1,166 @@
+<div class="page-header">
+  <div>
+    <span class="page-eyebrow">CADASTRO FUNCIONAL • CONTA DO USUÁRIO</span>
+    <h1>Meu Perfil e Vínculo Organizacional</h1>
+    <p class="page-desc">
+      Informações cadastrais, lotação corporativa, liderança direta e requisitos do seu cargo atual.
+    </p>
+  </div>
+  <span class="badge badge-info">{{ authService.userRole() }}</span>
+</div>
+
+@if (userDetail(); as detail) {
+  <div class="profile-grid">
+    <!-- Bloco 1: Identificação Funcional -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Dados de Identificação</div>
+          <div class="panel-subtitle">Registro funcional do colaborador (#{{ detail.id }})</div>
+        </div>
+      </div>
+      <div class="panel-body">
+        <dl class="record-list">
+          <div class="record-row">
+            <dt>Nome Completo</dt>
+            <dd><strong>{{ detail.name }}</strong></dd>
+          </div>
+          <div class="record-row">
+            <dt>Matrícula / Número Pessoal (NP)</dt>
+            <dd class="mono-num">{{ detail.np }}</dd>
+          </div>
+          <div class="record-row">
+            <dt>CPF</dt>
+            <dd class="mono-num">{{ detail.cpf }}</dd>
+          </div>
+          <div class="record-row">
+            <dt>E-mail Corporativo</dt>
+            <dd>{{ detail.email }}</dd>
+          </div>
+          <div class="record-row">
+            <dt>Perfil de Acesso no Sistema</dt>
+            <dd>
+              <span class="badge badge-neutral">{{ detail.role.name }}</span>
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- Bloco 2: Lotação, Cargo e Hierarquia -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Vínculo Corporativo e Hierarquia</div>
+          <div class="panel-subtitle">Empresa, cargo ocupado e liderança imediata</div>
+        </div>
+      </div>
+      <div class="panel-body">
+        <dl class="record-list">
+          <div class="record-row">
+            <dt>Empresa</dt>
+            <dd>
+              <strong>{{ detail.enterprise.name }}</strong>
+            </dd>
+          </div>
+          <div class="record-row">
+            <dt>CNPJ / Segmento</dt>
+            <dd>
+              <span class="mono-num">{{ detail.enterprise.cnpj }}</span> • {{ detail.enterprise.niche }}
+            </dd>
+          </div>
+          <div class="record-row">
+            <dt>Cargo Atual</dt>
+            <dd>
+              <strong>{{ detail.position.name }}</strong>
+              <p class="pos-desc">{{ detail.position.description }}</p>
+            </dd>
+          </div>
+          <div class="record-row">
+            <dt>Gestor Direto</dt>
+            <dd>
+              @if (detail.manager) {
+                <strong>{{ detail.manager.name }}</strong>
+                <div class="text-muted mono-num">
+                  NP: {{ detail.manager.np }} • {{ detail.manager.email }}
+                </div>
+              } @else {
+                <span class="text-muted">Sem gestor direto vinculado ao cadastro</span>
+              }
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+  </div>
+} @else {
+  <section class="panel">
+    <div class="panel-body">
+      <dl class="record-list">
+        <div class="record-row">
+          <dt>Nome Completo</dt>
+          <dd><strong>{{ authService.currentUser()?.name }}</strong></dd>
+        </div>
+        <div class="record-row">
+          <dt>Matrícula (NP)</dt>
+          <dd class="mono-num">{{ authService.currentUser()?.np }}</dd>
+        </div>
+        <div class="record-row">
+          <dt>Cargo Atual</dt>
+          <dd>{{ authService.currentUser()?.position }}</dd>
+        </div>
+        <div class="record-row">
+          <dt>Empresa</dt>
+          <dd>{{ authService.currentUser()?.enterprise }}</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+}
+
+<!-- Competências Exigidas pelo Cargo do Usuário Logado -->
+<section class="panel mt-section">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">Requisitos de Competência do Cargo Atual ({{ authService.currentUser()?.position }})</div>
+      <div class="panel-subtitle">Níveis esperados definidos na matriz do cargo (escala de 1 a 5)</div>
+    </div>
+  </div>
+  <div class="panel-body p-0">
+    @if (myPositionCompetences().length === 0) {
+      <div class="empty-box">
+        Nenhuma competência vinculada ao cargo <strong>{{ authService.currentUser()?.position }}</strong> até o momento.
+      </div>
+    } @else {
+      <div class="data-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Competência</th>
+              <th>Descrição</th>
+              <th>Nível Esperado no Cargo</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (pc of myPositionCompetences(); track pc.competence.id) {
+              <tr>
+                <td><strong>{{ pc.competence.name }}</strong></td>
+                <td>{{ pc.competence.description }}</td>
+                <td>
+                  <div class="level-indicator">
+                    <span class="mono-num level-badge">Nível {{ pc.expected_level }} / 5</span>
+                    <div class="level-bars">
+                      @for (step of [1, 2, 3, 4, 5]; track step) {
+                        <span class="level-bar" [class.filled]="step <= pc.expected_level"></span>
+                      }
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</section>

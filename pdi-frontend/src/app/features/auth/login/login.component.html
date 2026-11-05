@@ -1,0 +1,163 @@
+<div class="login-page">
+  <aside class="institutional-column">
+    <div class="brand-header">
+      <div class="brand-text">
+        <span class="system-code">MÓDULO CORPORATIVO DE RH</span>
+        <h1>Gestão de Competências e Plano de Desenvolvimento Individual</h1>
+      </div>
+    </div>
+
+    <div class="institutional-body">
+      <p class="lead-text">
+        Plataforma interna para mapeamento de matriz de cargos, ciclos de avaliação de desempenho
+        e acompanhamento estruturado do PDI na metodologia 70-20-10.
+      </p>
+
+      <div class="profiles-summary">
+        <div class="section-caption">PERFIS DE ACESSO HABILITADOS</div>
+
+        <div class="profile-item">
+          <div class="profile-index">01</div>
+          <div class="profile-info">
+            <strong>Colaborador</strong>
+            <span>Consulta de ficha funcional, requisitos do cargo, preenchimento de autoavaliação (SELF) e atualização de ações do PDI.</span>
+          </div>
+        </div>
+
+        <div class="profile-item">
+          <div class="profile-index">02</div>
+          <div class="profile-info">
+            <strong>Gestor</strong>
+            <span>Abertura de ciclos de avaliação da equipe, registro de avaliação de liderança (MANAGER) e acompanhamento de ações dos liderados.</span>
+          </div>
+        </div>
+
+        <div class="profile-item">
+          <div class="profile-index">03</div>
+          <div class="profile-info">
+            <strong>Recursos Humanos</strong>
+            <span>Administração de colaboradores, matriz de cargos e competências, banco de questões, calibragem de gaps e consolidação de PDI.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="institutional-footer">
+      <span>Ambiente Corporativo Integrado</span>
+      <span class="mono-num">v1.0 • API RESTful</span>
+    </footer>
+  </aside>
+
+  <main class="form-column">
+    <div class="login-box panel">
+      <div class="login-box-header">
+        <span class="auth-tag">AUTENTICAÇÃO DE USUÁRIO</span>
+        <h2>Acesso ao Sistema</h2>
+        <p>Identifique-se com seu e-mail corporativo ou número pessoal.</p>
+      </div>
+
+      <div class="mode-tabs" role="tablist">
+        <button
+          type="button"
+          class="mode-tab"
+          [class.active]="loginMode() === 'email'"
+          (click)="setLoginMode('email')"
+        >
+          E-mail Corporativo
+        </button>
+        <button
+          type="button"
+          class="mode-tab"
+          [class.active]="loginMode() === 'np'"
+          (click)="setLoginMode('np')"
+        >
+          Matrícula / NP
+        </button>
+      </div>
+
+      @if (originWarning()) {
+        <div class="alert alert-warning">
+          <div>
+            <strong>Atenção ao endereço de acesso:</strong> O servidor backend aceita requisições de
+            <code class="mono-num">http://127.0.0.1:4200</code>.
+            <a href="http://127.0.0.1:4200/login" class="origin-link">Clique aqui para abrir em 127.0.0.1:4200</a>.
+          </div>
+        </div>
+      }
+
+      <form (ngSubmit)="onSubmit()" class="login-form" novalidate>
+        @if (loginMode() === 'email') {
+          <div class="form-group">
+            <label class="form-label" for="emailInput">E-mail Corporativo</label>
+            <input
+              id="emailInput"
+              name="email"
+              type="email"
+              class="form-control"
+              placeholder="nome.sobrenome@empresa.com.br"
+              [(ngModel)]="email"
+              [disabled]="apiClient.isLoading()"
+              autocomplete="username"
+              required
+            />
+          </div>
+        } @else {
+          <div class="form-group">
+            <label class="form-label" for="npInput">Número Pessoal (NP)</label>
+            <input
+              id="npInput"
+              name="np"
+              type="text"
+              class="form-control mono-num"
+              placeholder="Ex: NP-1024 ou matrícula funcional"
+              [(ngModel)]="np"
+              [disabled]="apiClient.isLoading()"
+              autocomplete="username"
+              required
+            />
+          </div>
+        }
+
+        <div class="form-group">
+          <div class="label-row">
+            <label class="form-label" for="passwordInput">Senha de Acesso</label>
+            <button
+              type="button"
+              class="toggle-pass-btn"
+              (click)="showPassword.set(!showPassword())"
+            >
+              {{ showPassword() ? 'Ocultar' : 'Mostrar' }}
+            </button>
+          </div>
+          <input
+            id="passwordInput"
+            name="password"
+            [type]="showPassword() ? 'text' : 'password'"
+            class="form-control"
+            placeholder="Informe sua senha"
+            [(ngModel)]="password"
+            [disabled]="apiClient.isLoading()"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+
+        <div class="submit-row">
+          <button
+            type="submit"
+            class="btn btn-primary btn-block"
+            [disabled]="apiClient.isLoading()"
+          >
+            {{ apiClient.isLoading() ? 'Validando credenciais...' : 'Entrar' }}
+          </button>
+        </div>
+      </form>
+
+      <div class="login-box-footer">
+        <div class="footer-note">
+          <strong>Nota operacional:</strong> O cadastro de novos colaboradores e a redefinição de credenciais são realizados exclusivamente pelo setor de <strong>Recursos Humanos</strong>.
+        </div>
+      </div>
+    </div>
+  </main>
+</div>

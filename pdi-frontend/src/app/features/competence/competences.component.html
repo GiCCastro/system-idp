@@ -1,0 +1,472 @@
+<div class="page-header">
+  <div>
+    <span class="page-eyebrow">ARQUITETURA DE CARGOS • {{ authService.userRole() | uppercase }}</span>
+    <h1>Cargos, Competências e Matriz de Níveis</h1>
+    <p class="page-desc">
+      Catálogo de cargos, dicionário de competências, níveis esperados e banco de questões.
+    </p>
+  </div>
+</div>
+
+<div class="module-tabs">
+  <button
+    type="button"
+    class="module-tab"
+    [class.active]="activeTab() === 'matrix'"
+    (click)="activeTab.set('matrix')"
+  >
+    01. Matriz Cargo × Competência ({{ matrixTotal() }})
+  </button>
+  <button
+    type="button"
+    class="module-tab"
+    [class.active]="activeTab() === 'positions'"
+    (click)="activeTab.set('positions')"
+  >
+    02. Catálogo de Cargos ({{ positionsTotal() }})
+  </button>
+  <button
+    type="button"
+    class="module-tab"
+    [class.active]="activeTab() === 'competences'"
+    (click)="activeTab.set('competences')"
+  >
+    03. Dicionário de Competências ({{ competencesTotal() }})
+  </button>
+  <button
+    type="button"
+    class="module-tab"
+    [class.active]="activeTab() === 'questions'"
+    (click)="activeTab.set('questions')"
+  >
+    04. Banco de Questões ({{ questionsTotal() }})
+  </button>
+</div>
+
+@if (activeTab() === 'matrix') {
+  <div class="tab-layout" [class.single-col]="!authService.isHr()">
+    @if (authService.isHr()) {
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Vincular Nível Esperado</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <form (ngSubmit)="createRelation()">
+            <div class="form-group">
+              <label class="form-label">Cargo *</label>
+              <select class="form-control" name="posId" [(ngModel)]="relationForm.position_id" required>
+                <option [ngValue]="0" disabled>Selecione o cargo...</option>
+                @for (p of allPositions(); track p.id) {
+                  <option [ngValue]="p.id">{{ p.name }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Competência *</label>
+              <select class="form-control" name="compId" [(ngModel)]="relationForm.competence_id" required>
+                <option [ngValue]="0" disabled>Selecione a competência...</option>
+                @for (c of allCompetences(); track c.id) {
+                  <option [ngValue]="c.id">{{ c.name }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Nível Esperado (Escala de 1 a 5) *</label>
+              <div class="scale-selector">
+                @for (lvl of [1, 2, 3, 4, 5]; track lvl) {
+                  <button
+                    type="button"
+                    class="scale-btn mono-num"
+                    [class.selected]="relationForm.expected_level === lvl"
+                    (click)="relationForm.expected_level = lvl"
+                  >
+                    Nível {{ lvl }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full" [disabled]="apiClient.isLoading()">
+              Definir Nível na Matriz
+            </button>
+          </form>
+        </div>
+      </section>
+    }
+
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Matriz de Níveis Esperados por Cargo</div>
+          <div class="panel-subtitle">
+            Página {{ matrixPage() }} de {{ matrixTotalPages() }} • Total: {{ matrixTotal() }}
+          </div>
+        </div>
+        <div class="header-controls-row">
+          <div class="filter-box">
+            <select
+              class="form-control"
+              [(ngModel)]="selectedPositionFilter"
+              (ngModelChange)="onPositionFilterChange()"
+            >
+              <option [ngValue]="0">Todos os cargos</option>
+              @for (p of allPositions(); track p.id) {
+                <option [ngValue]="p.id">{{ p.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="pagination-controls">
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              [disabled]="matrixPage() <= 1 || apiClient.isLoading()"
+              (click)="loadMatrixPage(matrixPage() - 1)"
+            >
+              ←
+            </button>
+            <span class="mono-num">{{ matrixPage() }} / {{ matrixTotalPages() }}</span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              [disabled]="matrixPage() >= matrixTotalPages() || apiClient.isLoading()"
+              (click)="loadMatrixPage(matrixPage() + 1)"
+            >
+              →
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="panel-body p-0">
+        @if (groupedMatrix().length === 0) {
+          <div class="empty-state">Nenhum vínculo de cargo × competência encontrado.</div>
+        } @else {
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Cargo</th>
+                  <th>Competência</th>
+                  <th>Descrição da Competência</th>
+                  <th>Nível Exigido</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (group of groupedMatrix(); track group.position.id; let firstGroup = $first) {
+                  @for (item of group.items; track item.competence.id; let firstRow = $first) {
+                    <tr [class.cargo-group-divider]="firstRow && !firstGroup">
+                      @if (firstRow) {
+                        <td [attr.rowspan]="group.items.length" class="cargo-merged-cell">
+                          <strong>{{ group.position.name }}</strong>
+                          <span class="cargo-count-sub">{{ group.items.length }} competência(s)</span>
+                        </td>
+                      }
+                      <td>
+                        <strong>{{ item.competence.name }}</strong>
+                      </td>
+                      <td>{{ item.competence.description }}</td>
+                      <td>
+                        <span class="badge badge-info mono-num">Nível {{ item.expected_level }} / 5</span>
+                      </td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </section>
+  </div>
+}
+
+@if (activeTab() === 'positions') {
+  <div class="tab-layout" [class.single-col]="!authService.isHr()">
+    @if (authService.isHr()) {
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Cadastrar Novo Cargo</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <form (ngSubmit)="createPosition()">
+            <div class="form-group">
+              <label class="form-label">Título do Cargo *</label>
+              <input
+                type="text"
+                class="form-control"
+                name="posName"
+                [(ngModel)]="positionForm.name"
+                placeholder="Ex: Analista de Sistemas Pleno"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Descrição e Atribuições *</label>
+              <textarea
+                class="form-control"
+                name="posDesc"
+                [(ngModel)]="positionForm.description"
+                placeholder="Responsabilidades principais e escopo de atuação do cargo..."
+                required
+              ></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" [disabled]="apiClient.isLoading()">
+              Salvar Cargo
+            </button>
+          </form>
+        </div>
+      </section>
+    }
+
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Cargos Cadastrados na Empresa</div>
+          <div class="panel-subtitle">
+            Página {{ positionsPage() }} de {{ positionsTotalPages() }} • Total: {{ positionsTotal() }}
+          </div>
+        </div>
+        <div class="pagination-controls">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            [disabled]="positionsPage() <= 1 || apiClient.isLoading()"
+            (click)="loadPositionsPage(positionsPage() - 1)"
+          >
+            ←
+          </button>
+          <span class="mono-num">{{ positionsPage() }} / {{ positionsTotalPages() }}</span>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            [disabled]="positionsPage() >= positionsTotalPages() || apiClient.isLoading()"
+            (click)="loadPositionsPage(positionsPage() + 1)"
+          >
+            →
+          </button>
+        </div>
+      </div>
+      <div class="panel-body p-0">
+        @if (positions().length === 0) {
+          <div class="empty-state">Nenhum cargo cadastrado.</div>
+        } @else {
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Cargo</th>
+                  <th>Descrição</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (pos of positions(); track pos.id) {
+                  <tr>
+                    <td><strong>{{ pos.name }}</strong></td>
+                    <td>{{ pos.description }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </section>
+  </div>
+}
+
+@if (activeTab() === 'competences') {
+  <div class="tab-layout" [class.single-col]="!authService.isHr()">
+    @if (authService.isHr()) {
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Cadastrar Nova Competência</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <form (ngSubmit)="createCompetence()">
+            <div class="form-group">
+              <label class="form-label">Nome da Competência *</label>
+              <input
+                type="text"
+                class="form-control"
+                name="compName"
+                [(ngModel)]="competenceForm.name"
+                placeholder="Ex: Arquitetura de Software / Comunicação Assertiva"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Descrição Comportamental / Técnica *</label>
+              <textarea
+                class="form-control"
+                name="compDesc"
+                [(ngModel)]="competenceForm.description"
+                placeholder="Descreva os indicadores esperados para esta competência..."
+                required
+              ></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" [disabled]="apiClient.isLoading()">
+              Salvar Competência
+            </button>
+          </form>
+        </div>
+      </section>
+    }
+
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Dicionário de Competências da Empresa</div>
+          <div class="panel-subtitle">
+            Página {{ competencesPage() }} de {{ competencesTotalPages() }} • Total: {{ competencesTotal() }}
+          </div>
+        </div>
+        <div class="pagination-controls">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            [disabled]="competencesPage() <= 1 || apiClient.isLoading()"
+            (click)="loadCompetencesPage(competencesPage() - 1)"
+          >
+            ←
+          </button>
+          <span class="mono-num">{{ competencesPage() }} / {{ competencesTotalPages() }}</span>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            [disabled]="competencesPage() >= competencesTotalPages() || apiClient.isLoading()"
+            (click)="loadCompetencesPage(competencesPage() + 1)"
+          >
+            →
+          </button>
+        </div>
+      </div>
+      <div class="panel-body p-0">
+        @if (competences().length === 0) {
+          <div class="empty-state">Nenhuma competência cadastrada.</div>
+        } @else {
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Competência</th>
+                  <th>Descrição</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (comp of competences(); track comp.id) {
+                  <tr>
+                    <td><strong>{{ comp.name }}</strong></td>
+                    <td>{{ comp.description }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </section>
+  </div>
+}
+
+@if (activeTab() === 'questions') {
+  <div class="tab-layout" [class.single-col]="!authService.isHr()">
+    @if (authService.isHr()) {
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Criar Questão Manual de Formulário</div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <form (ngSubmit)="createQuestion()">
+            <div class="form-group">
+              <label class="form-label">Competência Avaliada *</label>
+              <select class="form-control" name="qCompId" [(ngModel)]="questionForm.competence_id" required>
+                <option [ngValue]="0" disabled>Selecione a competência...</option>
+                @for (c of allCompetences(); track c.id) {
+                  <option [ngValue]="c.id">{{ c.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Enunciado da Questão *</label>
+              <textarea
+                class="form-control"
+                name="qText"
+                [(ngModel)]="questionForm.question_text"
+                placeholder="Ex: Com que frequência e profundidade aplica padrões de projeto na resolução de problemas?"
+                required
+              ></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" [disabled]="apiClient.isLoading()">
+              Adicionar ao Banco de Questões
+            </button>
+          </form>
+        </div>
+      </section>
+    }
+
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Banco de Questões Cadastradas</div>
+          <div class="panel-subtitle">
+            Página {{ questionsPage() }} de {{ questionsTotalPages() }} • Total: {{ questionsTotal() }}
+          </div>
+        </div>
+        <div class="pagination-controls">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            [disabled]="questionsPage() <= 1 || apiClient.isLoading()"
+            (click)="loadQuestionsPage(questionsPage() - 1)"
+          >
+            ←
+          </button>
+          <span class="mono-num">{{ questionsPage() }} / {{ questionsTotalPages() }}</span>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            [disabled]="questionsPage() >= questionsTotalPages() || apiClient.isLoading()"
+            (click)="loadQuestionsPage(questionsPage() + 1)"
+          >
+            →
+          </button>
+        </div>
+      </div>
+      <div class="panel-body p-0">
+        @if (formQuestions().length === 0) {
+          <div class="empty-state">Nenhuma questão cadastrada no banco de formulários.</div>
+        } @else {
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Competência Associada</th>
+                  <th>Enunciado da Questão</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (q of formQuestions(); track q.id) {
+                  <tr>
+                    <td>
+                      <span class="badge badge-neutral">{{ q.competence.name }}</span>
+                    </td>
+                    <td>{{ q.question_text }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </section>
+  </div>
+}

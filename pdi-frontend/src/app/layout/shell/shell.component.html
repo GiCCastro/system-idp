@@ -1,0 +1,66 @@
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-meta">
+        <strong>Gestão de PDI</strong>
+        <span>{{ authService.currentUser()?.enterprise || 'Ambiente Corporativo' }}</span>
+      </div>
+    </div>
+
+    <div class="role-banner">
+      <span class="role-caption">PERFIL ATIVO</span>
+      <strong class="role-value">{{ authService.userRole() }}</strong>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">MÓDULOS DO SISTEMA</div>
+      @for (item of visibleNavItems(); track item.route) {
+        <a [routerLink]="item.route" routerLinkActive="active" class="nav-link">
+          <span class="nav-icon mono-num">
+            <i class="{{ item.icon }}"></i>
+            </span>
+          <span class="nav-label">{{ item.label }}</span>
+        </a>
+      }
+    </nav>
+
+    <div class="sidebar-footer">
+  
+      <button type="button" class="btn-logout" (click)="authService.logout()">
+        Encerrar Sessão
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-system">SISTEMA DE APOIO AO PLANO DE DESENVOLVIMENTO INDIVIDUAL</span>
+      </div>
+      <div class="topbar-right">
+        @if (authService.currentUser()?.manager) {
+          <div class="topbar-item">
+            <span class="item-label">Gestor Direto:</span>
+            <strong>{{ authService.currentUser()?.manager }}</strong>
+          </div>
+        }
+        <div class="topbar-item">
+          <span class="item-label">Cargo:</span>
+          <strong>{{ authService.currentUser()?.position }}</strong>
+        </div>
+
+        <a [routerLink]="['/perfil']" class="nav-link header">
+          <!-- <span class="nav-icon mono-num"> -->
+            <i class="fa-solid fa-user"></i>
+            <!-- </span> -->
+          <span class="nav-label">Perfil</span>
+        </a>
+
+      </div>
+    </header>
+
+    <main class="content-container">
+      <router-outlet />
+    </main>
+  </div>
+</div>

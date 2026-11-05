@@ -1,0 +1,321 @@
+<div class="page-header">
+  <div>
+    <span class="page-eyebrow">DESENVOLVIMENTO PROFISSIONAL • {{ authService.userRole() | uppercase }}</span>
+    <h1>Plano de Desenvolvimento Individual (PDI 70-20-10)</h1>
+    <p class="page-desc">
+      @if (authService.isHr()) {
+        Cálculo calibrado de gaps, geração automática de PDI 70-20-10 via IA e acompanhamento de ações.
+      } @else {
+        Acompanhamento de metas de desenvolvimento e atualização oficial de status das ações.
+      }
+    </p>
+  </div>
+
+  @if (authService.isHr()) {
+    <div class="header-actions">
+      <button
+        type="button"
+        class="btn btn-ai"
+        (click)="showAiGeneratorModal.set(true)"
+      >
+        ✦ Gerar PDI via IA (70-20-10)
+      </button>
+    </div>
+  }
+</div>
+
+<!-- MODAL: GERADOR AUTOMÁTICO DE PDI VIA IA -->
+@if (authService.isHr() && showAiGeneratorModal()) {
+  <div class="modal-backdrop" (click)="showAiGeneratorModal.set(false)">
+    <section class="panel modal-dialog modal-md" (click)="$event.stopPropagation()">
+      <div class="panel-header modal-header">
+        <div>
+          <div class="modal-badges-row">
+            <span class="badge badge-info">Motor de Calibragem 70-20-10</span>
+          </div>
+          <div class="panel-title mt-4">Gerar PDI 70-20-10 a partir de Avaliação (IA)</div>
+          <div class="panel-subtitle">
+            Calcula os gaps calibrados entre Autoavaliação e Gestor e estrutura o plano 70-20-10.
+          </div>
+        </div>
+        <button
+          type="button"
+          class="btn-close-modal"
+          (click)="showAiGeneratorModal.set(false)"
+          title="Fechar modal"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="panel-body modal-body">
+        <div class="ai-prereq-banner">
+          <strong>Pré-requisitos validados pelo servidor:</strong>
+          <span>
+            1. O ciclo deve conter <strong>Autoavaliação</strong> e <strong>Avaliação do Gestor</strong> cadastradas para o colaborador;
+          </span>
+          <span>
+            2. Todas as questões de ambas as avaliações devem estar respondidas.
+          </span>
+        </div>
+
+        <form (ngSubmit)="generatePdiWithAi()" class="ai-generator-modal-form">
+
+
+          <div class="form-group">
+            <label class="form-label">2. Selecionar Avaliação de Referência do Ciclo *</label>
+            <select
+              class="form-control"
+              name="selectedEvaluationIdForAi"
+              [(ngModel)]="selectedEvaluationIdForAi"
+              required
+            >
+              <option [ngValue]="0" disabled>-- Selecione a avaliação para processar os gaps --</option>
+              @for (ev of filteredEvaluationsForTargetUser(); track ev.id) {
+                <option [ngValue]="ev.id">
+                 ({{ ev.type === 'MANAGER' ? 'GESTOR' : 'AUTOAVALIAÇÃO' }}) • Ciclo {{ ev.cycle }} — {{ ev.user.name }} 
+                 @if(ev.type === 'MANAGER'){ (Avaliador: {{ ev.evaluator.name }})} 
+              }
+            </select>
+          </div>
+
+          <div class="modal-footer-actions">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="showAiGeneratorModal.set(false)"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              class="btn btn-ai"
+              [disabled]="generatingAiPdi() || !selectedEvaluationIdForAi"
+            >
+              @if (generatingAiPdi()) {
+                <span>✦ Calculando Gaps e Gerando Plano 70-20-10...</span>
+              } @else {
+                <span>✦ Processar Gaps e Gerar PDI (IA)</span>
+              }
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+}
+
+<!-- BARRA DE CONSULTA DE PDI POR COLABORADOR -->
+@if (authService.isHr()) {
+  <section class="panel mb-section">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">Consultar PDI por Colaborador</div>
+        <div class="panel-subtitle">Selecione um colaborador para listar os planos de desenvolvimento gerados</div>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="inline-selector">
+        <select
+          class="form-control"
+          [(ngModel)]="targetUserId"
+          (ngModelChange)="onCollaboratorChange($event)"
+        >
+          <option [ngValue]="0">-- Selecione um colaborador --</option>
+          @for (u of users(); track u.id) {
+            <option [ngValue]="u.id">{{ u.name }} ({{ u.position.name }})</option>
+          }
+        </select>
+        <button type="button" class="btn btn-outline-brand" (click)="loadUserDevelopments()">
+          Carregar PDIs
+        </button>
+      </div>
+    </div>
+  </section>
+}
+
+<!-- RELAÇÃO DE PDIs DO COLABORADOR -->
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">Planos de Desenvolvimento (PDI)</div>
+      <div class="panel-subtitle">
+        Clique em "Ver Ações 70-20-10" para abrir o detalhamento completo do plano em janela modal.
+      </div>
+    </div>
+  </div>
+  <div class="panel-body p-0">
+    @if (developments().length === 0) {
+      <div class="empty-state">
+        @if (authService.isHr()) {
+          Selecione um colaborador com PDI gerado acima ou clique em "+ Gerar PDI via IA (70-20-10)".
+        } @else {
+          Nenhum Plano de Desenvolvimento (PDI) encontrado para o seu perfil até o momento.
+        }
+      </div>
+    } @else {
+      <div class="data-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Título do PDI</th>
+              <th>Colaborador</th>
+              <th>Cargo de Referência</th>
+              <th>Data de Criação</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (dev of developments(); track dev.id) {
+              <tr [class.selected-row]="selectedDevelopment()?.id === dev.id">
+                <td>
+                  <div class="cell-primary">{{ dev.title }}</div>
+                </td>
+                <td>
+                  <div>{{ dev.user.name }}</div>
+                  <div class="cell-sub mono-num">NP {{ dev.user.np }}</div>
+                </td>
+                <td>{{ dev.position.name }}</td>
+                <td class="mono-num">{{ formatDate(dev.created_at) }}</td>
+                <td>
+                  <span
+                    class="badge"
+                    [ngClass]="{
+                      'badge-success': dev.status === 'COMPLETE',
+                      'badge-info': dev.status === 'IN_PROGRESS',
+                      'badge-warning': dev.status === 'PENDING'
+                    }"
+                  >
+                    {{ formatDevStatus(dev.status) }}
+                  </span>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    class="btn btn-primary btn-sm"
+                    (click)="selectDevelopment(dev)"
+                  >
+                    Ver Ações 70-20-10
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</section>
+
+<!-- MODAL: DETALHAMENTO DE AÇÕES 70-20-10 DO PDI SELECIONADO -->
+@if (selectedDevelopment(); as sel) {
+  <div class="modal-backdrop" (click)="selectedDevelopment.set(null)">
+    <section class="panel modal-dialog modal-lg" (click)="$event.stopPropagation()">
+      <div class="panel-header modal-header">
+        <div>
+          <div class="modal-badges-row">
+            <span
+              class="badge"
+              [ngClass]="{
+                'badge-success': sel.status === 'COMPLETE',
+                'badge-info': sel.status === 'IN_PROGRESS',
+                'badge-warning': sel.status === 'PENDING'
+              }"
+            >
+              {{ formatDevStatus(sel.status) }}
+            </span>
+            <span class="mono-num modal-cycle-tag">PDI #{{ sel.id }} • Criado em {{ formatDate(sel.created_at) }}</span>
+          </div>
+          <div class="panel-title mt-4">
+            {{ sel.title }}
+          </div>
+          <div class="panel-subtitle">
+            Colaborador: <strong>{{ sel.user.name }}</strong> • Cargo: <strong>{{ sel.position.name }}</strong>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="btn-close-modal"
+          (click)="selectedDevelopment.set(null)"
+          title="Fechar modal"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="panel-body modal-body">
+        @if (plans().length === 0) {
+          <div class="empty-state">
+            Nenhuma ação cadastrada para este PDI (#{{ sel.id }}).
+          </div>
+        } @else {
+          <div class="plans-list">
+            @for (plan of plans(); track plan.id) {
+              <article class="plan-card" [class.completed]="plan.status === 'COMPLETE'">
+                <header class="plan-card-header">
+                  <div class="plan-header-left">
+                    <span class="mono-num plan-code">AÇÃO #{{ plan.id }}</span>
+                    <h3 class="competence-title">{{ plan.competence.name }}</h3>
+                    <span class="badge badge-danger mono-num">Gap: {{ plan.gap }}</span>
+                  </div>
+
+                  <div class="plan-header-right">
+                    <span
+                      class="badge"
+                      [ngClass]="plan.status === 'COMPLETE' ? 'badge-success' : 'badge-warning'"
+                    >
+                      {{ plan.status === 'COMPLETE' ? 'Concluída' : 'PENDENTE' }}
+                    </span>
+
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      [ngClass]="plan.status === 'COMPLETE' ? 'btn-secondary' : 'btn-primary'"
+                      [disabled]="apiClient.isLoading()"
+                      (click)="togglePlanStatus(plan)"
+                    >
+                      {{ plan.status === 'COMPLETE' ? 'Reabrir para Pendente' : 'Marcar como Concluída' }}
+                    </button>
+                  </div>
+                </header>
+
+                <p class="competence-desc">{{ plan.competence.description }}</p>
+
+                @if (parseAction(plan.action); as parsed) {
+                  @if (parsed.practice70 || parsed.mentoring20 || parsed.formal10) {
+                    <div class="methodology-grid">
+                      @if (parsed.practice70) {
+                        <div class="method-block">
+                          <div class="method-tag mono-num">70% • PRÁTICA NO TRABALHO (ON-THE-JOB)</div>
+                          <p>{{ parsed.practice70 }}</p>
+                        </div>
+                      }
+                      @if (parsed.mentoring20) {
+                        <div class="method-block">
+                          <div class="method-tag mono-num">20% • MENTORIA E TROCA DE EXPERIÊNCIAS</div>
+                          <p>{{ parsed.mentoring20 }}</p>
+                        </div>
+                      }
+                      @if (parsed.formal10) {
+                        <div class="method-block">
+                          <div class="method-tag mono-num">10% • EDUCAÇÃO FORMAL E CAPACITAÇÃO</div>
+                          <p>{{ parsed.formal10 }}</p>
+                        </div>
+                      }
+                    </div>
+                  } @else {
+                    <div class="raw-action-box">
+                      {{ parsed.raw }}
+                    </div>
+                  }
+                }
+              </article>
+            }
+          </div>
+        }
+      </div>
+    </section>
+  </div>
+}

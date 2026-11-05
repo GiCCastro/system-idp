@@ -1,0 +1,350 @@
+<div class="page-header">
+  <div>
+    <span class="page-eyebrow">ADMINISTRAÇÃO DE PESSOAL • {{ authService.userRole() | uppercase }}</span>
+    <h1>{{ authService.isHr() ? 'Quadro de Colaboradores e Admissão' : 'Minha Equipe e Liderados' }}</h1>
+    <p class="page-desc">
+      @if (authService.isHr()) {
+        Listagem oficial da empresa, consulta individual e cadastro de novos colaboradores.
+      } @else {
+        Consulta de liderados diretos vinculados à sua gestão e atalhos para avaliação de desempenho.
+      }
+    </p>
+  </div>
+  @if (authService.isHr()) {
+    <button
+      type="button"
+      class="btn btn-primary"
+      (click)="showRegisterModal.set(true)"
+    >
+      + Cadastrar Colaborador
+    </button>
+  }
+</div>
+
+@if (authService.isHr() && showRegisterModal()) {
+  <div class="modal-backdrop" (click)="showRegisterModal.set(false)">
+    <section
+      class="panel modal-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="register-modal-title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="panel-header modal-header">
+      <div>
+          <div class="panel-title" id="register-modal-title">Cadastro de Novo Colaborador</div>
+          <div class="panel-subtitle">Preencha os dados para cadastrar um novo colaborador.</div>
+        </div>
+        <button
+          type="button"
+          class="btn-close-modal"
+          aria-label="Fechar cadastro"
+          (click)="showRegisterModal.set(false)"
+        >
+          ✕
+        </button>
+      </div>
+      <div class="panel-body modal-body">
+        <form (ngSubmit)="registerUser()" class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Nome Completo *</label>
+          <input
+            type="text"
+            class="form-control"
+            name="name"
+            [(ngModel)]="newUser.name"
+            placeholder="Ex: Mariana Alves Costa"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">CPF *</label>
+          <input
+            type="text"
+            class="form-control mono-num"
+            name="cpf"
+            [(ngModel)]="newUser.cpf"
+            placeholder="000.000.000-00"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Matrícula / Número Pessoal (NP) *</label>
+          <input
+            type="text"
+            class="form-control mono-num"
+            name="np"
+            [(ngModel)]="newUser.np"
+            placeholder="Ex: NP-2045"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">E-mail Corporativo *</label>
+          <input
+            type="email"
+            class="form-control"
+            name="email"
+            [(ngModel)]="newUser.email"
+            placeholder="mariana.costa@empresa.com.br"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Senha Inicial *</label>
+          <input
+            type="password"
+            class="form-control"
+            name="password"
+            [(ngModel)]="newUser.password"
+            placeholder="Defina a senha de acesso"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Perfil de Acesso *</label>
+          <select class="form-control" name="role_id" [(ngModel)]="newUser.role_id" required>
+            @for (role of availableRoles(); track role.id) {
+              <option [ngValue]="role.id">{{ role.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Cargo *</label>
+          <select class="form-control" name="position_id" [(ngModel)]="newUser.position_id" required>
+            <option [ngValue]="0" disabled>Selecione um cargo...</option>
+            @for (pos of positions(); track pos.id) {
+              <option [ngValue]="pos.id">{{ pos.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Gestor Direto</label>
+          <select class="form-control" name="manager_id" [(ngModel)]="newUser.manager_id">
+            <option [ngValue]="null">Sem gestor direto vinculado</option>
+            @for (mgr of managersList(); track mgr.id) {
+              <option [ngValue]="mgr.id">{{ mgr.name }} (NP: {{ mgr.np }})</option>
+            }
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Empresa*</label>
+          <input
+            type="text"
+            class="form-control"
+            [value]="enterpriseName() || 'Empresa vinculada'"
+            readonly
+          />
+        </div>
+
+          <div class="form-actions-full">
+            <button type="button" class="btn btn-secondary" (click)="showRegisterModal.set(false)">
+              Cancelar
+            </button>
+            <button type="submit" class="btn btn-primary" [disabled]="apiClient.isLoading()">
+              {{ apiClient.isLoading() ? 'Salvando...' : 'Confirmar' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+}
+
+<section class="panel mb-section">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">Consultar ficha de colaborador</div>
+      <div class="panel-subtitle">
+        Selecione uma pessoa para consultar os dados e acessar atalhos.
+      </div>
+    </div>
+  </div>
+  <div class="panel-body">
+    <form (ngSubmit)="lookupUserById()" class="lookup-bar">
+      <div class="lookup-input-wrap">
+        <label class="form-label" for="lookupUserSelect">Colaborador</label>
+        <select
+          id="lookupUserSelect"
+          class="form-control"
+          name="lookupId"
+          [(ngModel)]="lookupId"
+          (ngModelChange)="clearLookedUpUser()"
+          required
+        >
+          <option [ngValue]="null" disabled>Selecione um colaborador...</option>
+          @for (user of lookupUsers(); track user.id) {
+            <option [ngValue]="user.id">{{ user.name }} (NP: {{ user.np }})</option>
+          }
+        </select>
+      </div>
+      <button type="submit" class="btn btn-outline-brand" [disabled]="apiClient.isLoading() || !lookupId">
+        Consultar ficha
+      </button>
+    </form>
+
+    @if (lookedUpUser(); as found) {
+      <div class="found-user-card">
+        <div class="found-header">
+          <div>
+            <div class="panel-title">Ficha consultada</div>
+            <strong>{{ found.name }}</strong>
+            <span class="mono-num"> • ID #{{ found.id }} • NP {{ found.np }}</span>
+          </div>
+          <span class="badge badge-info">{{ found.role.name }}</span>
+        </div>
+        <div class="found-meta">
+          <span><strong>Cargo:</strong> {{ found.position.name }} (#{{ found.position.id }})</span>
+          <span><strong>E-mail:</strong> {{ found.email }}</span>
+          <span><strong>CPF:</strong> <span class="mono-num">{{ found.cpf }}</span></span>
+          <span>
+            <strong>Gestor:</strong>
+            {{ found.manager ? found.manager.name + ' (#' + found.manager.id + ')' : 'Não vinculado' }}
+          </span>
+        </div>
+        <div class="found-actions">
+          <a
+            [routerLink]="['/avaliacoes']"
+            [queryParams]="{ userId: found.id }"
+            class="btn btn-primary btn-sm"
+          >
+            Ver / Abrir Avaliações deste Colaborador
+          </a>
+          <a
+            [routerLink]="['/pdi']"
+            [queryParams]="{ userId: found.id }"
+            class="btn btn-secondary btn-sm"
+          >
+            Consultar PDI
+          </a>
+        </div>
+      </div>
+    }
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <div class="panel-title">
+        {{ authService.isHr() ? 'Relação Geral de Colaboradores da Empresa' : 'Liderados Vinculados à Minha Gestão' }}
+      </div>
+      <div class="panel-subtitle">
+        @if (authService.isHr()) {
+          Total de registros: {{ totalItems() }} • Página {{ page() }} de {{ totalPages() }}
+        } @else {
+          Colaboradores cujo gestor direto corresponde ao seu ID (#{{ authService.currentUser()?.id }})
+        }
+      </div>
+    </div>
+    @if (authService.isHr()) {
+      <div class="pagination-controls">
+        <button
+          type="button"
+          class="btn btn-secondary btn-sm"
+          [disabled]="page() <= 1 || apiClient.isLoading()"
+          (click)="changePage(page() - 1)"
+        >
+          ← Anterior
+        </button>
+        <span class="mono-num page-indicator">{{ page() }} / {{ totalPages() }}</span>
+        <button
+          type="button"
+          class="btn btn-secondary btn-sm"
+          [disabled]="page() >= totalPages() || apiClient.isLoading()"
+          (click)="changePage(page() + 1)"
+        >
+          Próxima →
+        </button>
+      </div>
+    }
+  </div>
+
+  <div class="panel-body p-0">
+    @if (displayedUsers().length === 0) {
+      <div class="empty-state">
+        @if (authService.isHr()) {
+          Nenhum colaborador encontrado na empresa atual.
+        } @else {
+          Nenhum liderado carregado ainda. Utilize a busca por ID acima para carregar a ficha de seus liderados diretos.
+        }
+      </div>
+    } @else {
+      <div class="data-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Nome / E-mail</th>
+              <th>Matrícula (NP)</th>
+              <th>CPF</th>
+              <th>Cargo</th>
+              <th>Perfil</th>
+              <th>Gestor Direto</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (u of displayedUsers(); track u.id) {
+              <tr>
+                <td>
+                  <div class="cell-primary">{{ u.name }}</div>
+                  <div class="cell-sub">{{ u.email }}</div>
+                </td>
+                <td class="mono-num">{{ u.np }}</td>
+                <td class="mono-num">{{ u.cpf }}</td>
+                <td>{{ u.position.name }}</td>
+                <td>
+                  <span
+                    class="badge"
+                    [ngClass]="{
+                      'badge-info': u.role.name === 'Recursos Humanos',
+                      'badge-warning': u.role.name === 'Gestor',
+                      'badge-neutral': u.role.name === 'Colaborador'
+                    }"
+                  >
+                    {{ u.role.name }}
+                  </span>
+                </td>
+                <td>
+                  @if (u.manager) {
+                    <span>{{ u.manager.name }}</span>
+                  } @else {
+                    <span class="cell-sub">—</span>
+                  }
+                </td>
+                <td>
+                  <div class="row-actions">
+                    <a
+                      [routerLink]="['/avaliacoes']"
+                      [queryParams]="{ userId: u.id }"
+                      class="btn btn-secondary btn-sm"
+                    >
+                      Avaliações
+                    </a>
+                    @if (authService.isHr()) {
+                      <a
+                        [routerLink]="['/pdi']"
+                        [queryParams]="{ userId: u.id }"
+                        class="btn btn-outline-brand btn-sm"
+                      >
+                        PDI
+                      </a>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</section>
