@@ -171,12 +171,6 @@ def generate_development_from_evaluation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="A avaliação informada não existe no sistema."
         )
-
-    if user_logged.get("enterprise_id") and existing_evaluation.enterprise_id != user_logged["enterprise_id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso negado. A avaliação informada pertence a outra empresa."
-        )
         
     user_id = existing_evaluation.user_id
     existing_user = db.query(User).filter(User.id == user_id).first()

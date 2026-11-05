@@ -8,10 +8,11 @@ from app.config import security
 from app.models.auth.role import Role
 from app.models.auth.user import User
 from app.models.competence.position import Position
+from app.models.development.development import Development
 from app.models.evaluation.evaluation import Evaluation
+from app.models.evaluation.evaluation_answer import EvaluationAnswer
 from app.models.evaluation.evaluation_question import EvaluationQuestion
 from app.models.evaluation.form_question import FormQuestion
-from app.models.auth.enterprise import Enterprise
 from app.models.competence.position_competence import PositionCompetence
 from app.schemas.evaluation.evaluation import EvaluationCreate, EvaluationCreateResponse, EvaluationDetailResponse, EvaluationResponse
 from app.services.gemini_service import generate_form_questions_ai
@@ -56,11 +57,6 @@ def create_evaluation(
         )
         
     if user_logged.get("enterprise_id"):
-        if evaluation.enterprise_id != user_logged["enterprise_id"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Acesso negado. A avaliação deve pertencer à mesma empresa do usuário autenticado."
-            )
         if existing_user.enterprise_id != user_logged["enterprise_id"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -147,21 +143,11 @@ def create_evaluation(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="O tipo de avaliação informado é inválido. Os tipos válidos são: 'SELF' ou 'MANAGER'."
         )
-    
-            
-    existing_enterprise = db.query(Enterprise).filter(Enterprise.id == evaluation.enterprise_id).first()
-    
-    if not existing_enterprise:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A empresa informada não existe no sistema."
-        )
         
     new_evaluation = Evaluation(
         user_id = evaluation.user_id,
         evaluator_id = evaluation.evaluator_id,
         target_position_id = evaluation.target_position_id,
-        enterprise_id = evaluation.enterprise_id,
         type = evaluation.type,
         cycle = evaluation.cycle
     )
@@ -184,7 +170,6 @@ def create_evaluation(
             user_id=new_evaluation.user_id,
             evaluator_id=new_evaluation.evaluator_id,
             target_position_id=new_evaluation.target_position_id,
-            enterprise_id=new_evaluation.enterprise_id,
             type=new_evaluation.type,
             cycle=new_evaluation.cycle,
             created_at=str(new_evaluation.created_at)
@@ -200,6 +185,7 @@ def create_evaluation(
 def list_evaluations(
     page: int = Query(default=1, ge=1, description="Número da página"),
     limit: int = Query(default=10, ge=1, le=100, description="Quantidade por página"),
+    order: str = Query(default="desc", pattern="^(?i)(asc|desc)$", description="Ordenação: asc ou desc"),
     db:Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
@@ -213,7 +199,13 @@ def list_evaluations(
 
     query = db.query(Evaluation)
     if user_logged.get("enterprise_id"):
-        query = query.filter(Evaluation.enterprise_id == user_logged["enterprise_id"])
+        query = query.join(User, Evaluation.user_id == User.id).filter(
+            User.enterprise_id == user_logged["enterprise_id"]
+        )
+    if order.lower() == "asc":
+        query = query.order_by(Evaluation.id.asc())
+    else:
+        query = query.order_by(Evaluation.id.desc())
     return paginate(query, page=page, limit=limit)
 
 
@@ -225,6 +217,7 @@ def list_evaluations(
 
 def list_evaluation_user(
     user_id: int,
+    order: str = Query(default="desc", pattern="^(?i)(asc|desc)$", description="Ordenação: asc ou desc"),
     db: Session = Depends(get_db),
     user_logged: dict = Depends(security.get_logged_in_user)
 ):
@@ -244,6 +237,7 @@ def list_evaluation_user(
             detail="Acesso negado. O colaborador informado pertence a outra empresa."
         )
         
+    sort_clause = Evaluation.id.asc() if order.lower() == "asc" else Evaluation.id.desc()
 
     if user_logged['role'] == 'Colaborador':
         if not (is_user):
@@ -254,7 +248,7 @@ def list_evaluation_user(
         
         records = db.query(Evaluation).filter(
                 Evaluation.user_id == user_id, Evaluation.type == 'SELF'
-         ).all()  
+         ).order_by(sort_clause).all()  
         
     
     if user_logged["role"] == 'Gestor':
@@ -267,13 +261,13 @@ def list_evaluation_user(
         
         records = db.query(Evaluation).filter(
                         Evaluation.user_id == user_id, Evaluation.type == 'MANAGER'
-                 ).all() 
+                 ).order_by(sort_clause).all() 
         
     if user_logged["role"] == 'Recursos Humanos':
         
         records = db.query(Evaluation).filter(
                             Evaluation.user_id == user_id
-                     ).all() 
+                     ).order_by(sort_clause).all() 
     
     return records
 
@@ -302,18 +296,18 @@ def generate_questions_for_evaluation(
             detail="Avaliação não encontrada."
         )
 
-    if user_logged.get("enterprise_id") and existing_evaluation.enterprise_id != user_logged["enterprise_id"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso negado. Esta avaliação pertence a outra empresa."
-        )
-    
     # 1. Recupera o colaborador avaliado de forma segura
     user = db.query(User).filter(User.id == existing_evaluation.user_id).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Colaborador associado à avaliação não foi encontrado."
+        )
+
+    if user_logged.get("enterprise_id") and user.enterprise_id != user_logged["enterprise_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Esta avaliação pertence a outra empresa."
         )
 
     # 2. Determina o cargo avaliado (target_position_id ou cargo atual do colaborador)
@@ -353,12 +347,32 @@ def generate_questions_for_evaluation(
     if not self_evaluation or not manager_evaluation:
         missing = []
         if not self_evaluation:
-            missing.append("Autoavaliação (SELF)")
+            missing.append("Autoavaliação")
         if not manager_evaluation:
-            missing.append("Avaliação do Gestor (MANAGER)")
+            missing.append("Avaliação do Gestor")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Não é possível gerar perguntas. O ciclo está incompleto para este cargo. Falta cadastrar: {', '.join(missing)}."
+        )
+
+    # 3.1 TRAVA: Impede gerar novas questões se o PDI já foi gerado ou se já existem respostas no ciclo
+    existing_dev = db.query(Development).filter(
+        Development.user_id == user.id,
+        Development.position_id == position.id
+    ).first()
+    if existing_dev:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não é possível gerar novas questões. Os gaps e o PDI para este colaborador já foram gerados."
+        )
+
+    existing_answers_count = db.query(EvaluationAnswer).filter(
+        EvaluationAnswer.evaluation_id.in_([self_evaluation.id, manager_evaluation.id])
+    ).count()
+    if existing_answers_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não é possível gerar novas questões. Este ciclo de avaliação já possui respostas registradas."
         )
 
     # 4. Busca competências do cargo
@@ -400,6 +414,7 @@ def generate_questions_for_evaluation(
         new_form_question = FormQuestion(
             competence_id=question["competence_id"],
             question_text=question["question_text"],
+            enterprise_id=user.enterprise_id
         )
         db.add(new_form_question)
         db.flush()
@@ -426,7 +441,10 @@ def generate_questions_for_evaluation(
             to_email=user.email,
             recipient_name=user.name,
             evaluation_type="SELF",
-            employee_name=user.name
+            employee_name=user.name,
+            cycle=existing_evaluation.cycle,
+            evaluation_id=self_evaluation.id,
+            user_id=user.id
         )
 
     # E-mail para o Gestor
@@ -437,7 +455,10 @@ def generate_questions_for_evaluation(
             to_email=manager_user.email,
             recipient_name=manager_user.name,
             evaluation_type="MANAGER",
-            employee_name=user.name
+            employee_name=user.name,
+            cycle=existing_evaluation.cycle,
+            evaluation_id=manager_evaluation.id,
+            user_id=user.id
         )
 
     return {

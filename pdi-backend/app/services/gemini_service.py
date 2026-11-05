@@ -21,6 +21,7 @@ def generate_form_questions_ai(
     
     DIRETRIZES:
     - NÃO faça perguntas abertas (evite começar com 'Como', 'Por que', 'O que').
+    - Escreva corretamente em português, sem erros gramaticais.
     - Escreva frases afirmativas, diretas e práticas focadas em comportamento ou aplicação técnica observável.
     - Exemplo de boa afirmativa: "Aplica de forma autônoma técnicas de otimização de desempenho e lazy loading no desenvolvimento de interfaces."
     
@@ -33,7 +34,7 @@ def generate_form_questions_ai(
     print(f"\n[AI] Solicitando perguntas para o cargo: {position_name}...")
     
     response = client.models.generate_content(
-        model="gemini-3.6-flash",
+        model="gemini-flash-lite-latest",
         contents=prompt,
         config=types.GenerateContentConfig(response_mime_type="application/json"),
     )
@@ -73,6 +74,8 @@ def generate_pdi_suggestions_ai(
         "action_10": "Texto do estudo/conteúdo"
       }}
     ]
+    
+    Por favor, escreva corretamente em português, sem erros gramaticais.
     """
     
   response = client.models.generate_content(
